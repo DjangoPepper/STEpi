@@ -29,6 +29,17 @@ const newId = () => `hl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 const fmtW  = (w: number | null) =>
   w === null ? "—" : w.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
+/* ── Responsive hook ───────────────────────────────────────── */
+function useWindowWidth() {
+  const [width, setWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 export default function Hangar({ dark }: HangarProps) {
   const bg      = dark ? "#0d0d0d" : "#f5f5f5";
   const surface = dark ? "#141414" : "#ffffff";
@@ -38,6 +49,12 @@ export default function Hangar({ dark }: HangarProps) {
   const border  = dark ? "#2a2a2a" : "#d0d0d0";
   const danger  = dark ? "#f87171" : "#dc2626";
   const amber   = "#d97706";
+
+  /* ── Breakpoints ─────────────────────────────────────────────── */
+  const vw        = useWindowWidth();
+  const isMobile  = vw < 640;
+  const isTablet  = vw >= 640 && vw < 1024;
+  const isDesktop = vw >= 1024;
 
   /* ── Excel data ──────────────────────────────────────────────── */
   const [xlHeaders,  setXlHeaders]  = useState<string[]>([]);
@@ -308,17 +325,18 @@ export default function Hangar({ dark }: HangarProps) {
   };
 
   /* ── Styles ──────────────────────────────────────────────────── */
-  const btnBase: React.CSSProperties = { fontFamily: MONO, fontSize: 11, letterSpacing: "0.08em",
-    padding: "4px 10px", borderRadius: 4, cursor: "pointer", border: "none" };
-  const thS: React.CSSProperties = { padding: "5px 12px", textAlign: "left", fontSize: 10,
+  const pad     = isMobile ? "12px 10px" : isTablet ? "16px 18px" : "20px 28px";
+  const btnBase: React.CSSProperties = { fontFamily: MONO, fontSize: isMobile ? 12 : 11, letterSpacing: "0.08em",
+    padding: isMobile ? "7px 14px" : "4px 10px", borderRadius: 4, cursor: "pointer", border: "none" };
+  const thS: React.CSSProperties = { padding: isMobile ? "6px 10px" : "5px 12px", textAlign: "left", fontSize: isMobile ? 11 : 10,
     color: muted, textTransform: "uppercase" as const, letterSpacing: "0.1em", fontWeight: 400,
     borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" };
   const tdS = (right?: boolean): React.CSSProperties => ({
-    padding: "5px 12px", fontSize: 11, color: text, textAlign: right ? "right" : "left",
+    padding: isMobile ? "7px 10px" : "5px 12px", fontSize: isMobile ? 12 : 11, color: text, textAlign: right ? "right" : "left",
     borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" });
 
   return (
-    <div style={{ padding: "16px 12px", fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box", maxWidth: "100%", overflowX: "hidden" }}>
+    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box", maxWidth: "100%", overflowX: "hidden" }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
@@ -358,10 +376,11 @@ export default function Hangar({ dark }: HangarProps) {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start",
+        flexDirection: isDesktop ? "row" : "column", flexWrap: isDesktop ? "nowrap" : "wrap" }}>
 
         {/* ── Lines panel ─────────────────────────────────────── */}
-        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ width: isDesktop ? 260 : "100%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
             Lignes ({lines.length})
           </div>
@@ -374,7 +393,7 @@ export default function Hangar({ dark }: HangarProps) {
             <button onClick={createLine}
               style={{ ...btnBase, background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>+</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: isDesktop ? 520 : 200, overflowY: "auto" }}>
             {lines.length === 0 && <div style={{ fontSize: 11, color: muted }}>Aucune ligne créée</div>}
             {lines.map((l) => {
               const isActive = l.id === selectedId;
@@ -409,7 +428,8 @@ export default function Hangar({ dark }: HangarProps) {
         </div>
 
         {/* ── Camera column ───────────────────────────────────── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch", width:"100%" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch",
+          width: isDesktop ? 420 : "100%", flexShrink: 0 }}>
           <div style={{ padding:"5px 14px", borderRadius:4, fontSize:11, fontWeight:700,
             background: selectedLine ? accent+"18" : (dark?"#1a1a1a":"#f0f0f0"),
             border:`1px solid ${selectedLine ? accent : border}`,
@@ -503,7 +523,7 @@ export default function Hangar({ dark }: HangarProps) {
 
         {/* ── Detail of selected line ──────────────────────────── */}
         {selectedLine && (
-          <div style={{ width:"100%", minWidth:0 }}>
+          <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div style={{ fontSize:12, fontWeight:700, color:accent }}>
                 {selectedLine.name}
