@@ -3,15 +3,17 @@ import ExcelCleaner from "./ExcelCleaner";
 import Pointage from "./pointage";
 import Scane from "./scane";
 import Tally from "./tally";
+import Hangar from "./hangar";
 import type { PointageData } from "./types";
 
-type TabId = "excel-cleaner" | "pointage" | "scan" | "tally";
+type TabId = "excel-cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "excel-cleaner", label: "Excel Cleaner" },
   { id: "pointage",      label: "Pointage" },
   { id: "scan",          label: "Scan" },
   { id: "tally",         label: "Tally" },
+  { id: "hangar",        label: "Hangar" },
 ];
 
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
@@ -93,6 +95,7 @@ export default function App() {
         {active === "pointage" && <Pointage dark={dark} initialData={pointageData} />}
         {active === "scan"     && <Scane dark={dark} />}
         {active === "tally"    && <Tally dark={dark} />}
+        {active === "hangar"   && <Hangar dark={dark} />}
       </main>
     </div>
   );
