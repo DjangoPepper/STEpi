@@ -573,19 +573,15 @@ export default function Tally({ dark }: TallyProps) {
               )}
               {/* Total avec non assigné */}
               {(() => {
-                const totPRest  = stHasMaxi ? stMaxiSum - totalWeight : NaN;
-                const totPMoy   = assignedCount > 0 ? assignedWeight / assignedCount : 0;
-                const totEst    = totPMoy > 0 && !isNaN(totPRest) ? totPRest / totPMoy : NaN;
-                const restColor = !stHasMaxi ? muted : totPRest >= 0 ? accent : (dark ? "#f87171" : "#dc2626");
                 return (
                   <tr style={{ background: dark ? "#0e2016" : "#e8f5ee" }}>
                     <td style={cellStyle({ color: accent, fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 700 })}>Total</td>
                     <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{totalCount.toLocaleString("fr-FR")}</td>
                     {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{fmtWeight(totalWeight)}</td>}
                     <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: stHasMaxi ? (dark ? "#fbbf24" : "#b45309") : muted })}>{stHasMaxi ? fmtWeight(stMaxiSum) : "—"}</td>
-                    {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: restColor })}>{!stHasMaxi ? "—" : totPRest.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}</td>}
-                    {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>{totPMoy > 0 ? fmtWeight(totPMoy) : "—"}</td>}
-                    {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: dark ? "#a78bfa" : "#7c3aed" })}>{isNaN(totEst) ? "—" : Math.round(totEst).toLocaleString("fr-FR")}</td>}
+                    {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>}
+                    {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>}
+                    {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>}
                   </tr>
                 );
               })()}
