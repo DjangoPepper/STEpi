@@ -316,7 +316,7 @@ export default function Hangar({ dark }: HangarProps) {
     // Detail sheet per line
     for (const line of lines) {
       const data: (string | number | null)[][] = [
-        ["#", "Code", "Poids (kg)", "Source"],
+        ["#", "Réf.", "Poids (kg)", "Source"],
         ...line.items.map((it, i) => [i + 1, it.code, it.weight, it.fromExcel ? "Excel" : "Manuel"]),
       ];
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), line.name.slice(0, 31));
@@ -350,7 +350,7 @@ export default function Hangar({ dark }: HangarProps) {
         {xlHeaders.length > 0 && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, color: muted }}>Code :</span>
+              <span style={{ fontSize: 10, color: muted }}>Réf. :</span>
               <select value={codeColIdx} onChange={(e) => setCodeColIdx(Number(e.target.value))}
                 style={{ fontFamily: MONO, fontSize: 10, padding: "3px 6px", borderRadius: 3,
                   background: surface, border: `1px solid ${border}`, color: text }}>
@@ -499,7 +499,7 @@ export default function Hangar({ dark }: HangarProps) {
           <div style={{ display:"flex", gap:6, width:"100%" }}>
             <input value={manualCode} onChange={(e)=>setManualCode(e.target.value)}
               onKeyDown={(e)=>e.key==="Enter"&&submitManual()}
-              placeholder="Saisie manuelle d'un code…"
+              placeholder="Saisie manuelle d'une réf…"
               style={{ flex:1, fontFamily:MONO, fontSize:11, padding:"6px 10px", borderRadius:4,
                 background:surface, border:`1px solid ${border}`, color:text, outline:"none" }} />
             <button onClick={submitManual}
@@ -511,12 +511,12 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ padding:"9px 12px", borderRadius:6, width:"100%", boxSizing:"border-box" as const,
               background: lastScan.status==="added"?(dark?"#0a1f0f":"#f0fdf4"):(dark?"#1c1000":"#fffbeb"),
               border:`1px solid ${lastScan.status==="added"?accent:amber}` }}>
-              <div style={{fontSize:10,color:muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>Dernier code</div>
+              <div style={{fontSize:10,color:muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>Dernière réf.</div>
               <div style={{fontSize:12,fontWeight:700,color:text,wordBreak:"break-all",marginBottom:3}}>{lastScan.code}</div>
               {lastScan.status==="added"    && <div style={{fontSize:11,color:accent}}>✓ Ajouté</div>}
               {lastScan.status==="duplicate"&& <div style={{fontSize:11,color:amber}}>⚠ Code déjà présent dans cette ligne</div>}
               {lastScan.status==="noline"   && <div style={{fontSize:11,color:amber}}>⚠ Aucune ligne sélectionnée</div>}
-              {lastScan.status==="unknown"  && <div style={{fontSize:11,color:amber}}>? Code absent du fichier Excel → saisie manuelle</div>}
+              {lastScan.status==="unknown"  && <div style={{fontSize:11,color:amber}}>? Réf. absente du fichier Excel → saisie manuelle</div>}
             </div>
           )}
         </div>
@@ -535,14 +535,14 @@ export default function Hangar({ dark }: HangarProps) {
                 style={{ ...btnBase, background:"transparent", border:`1px solid ${danger}`, color:danger }}>Vider</button>
             </div>
             {selectedLine.items.length === 0 ? (
-              <div style={{ fontSize:11, color:muted }}>Aucun article — scannez ou saisissez un code</div>
+              <div style={{ fontSize:11, color:muted }}>Aucun article — scannez ou saisissez une réf.</div>
             ) : (
               <div style={{ maxHeight:380, overflowY:"auto" }}>
                 <table style={{ borderCollapse:"collapse", width:"100%" }}>
                   <thead>
                     <tr>
                       <th style={thS}>#</th>
-                      <th style={thS}>Code</th>
+                      <th style={thS}>Réf.</th>
                       <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
                       <th style={thS}>Source</th>
                       <th style={thS}></th>
@@ -623,13 +623,13 @@ export default function Hangar({ dark }: HangarProps) {
           <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:10,
             padding:"24px 20px", width:"min(360px, calc(100vw - 32px))", fontFamily:MONO, boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
             <div style={{ fontSize:10, color:muted, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:12 }}>
-              Code non trouvé dans Excel
+              Réf. non trouvée dans Excel
             </div>
             <div style={{ fontSize:13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:16 }}>
               {pending.code}
             </div>
             <div style={{ fontSize:11, color:muted, marginBottom:6 }}>Poids (kg) :</div>
-            <input autoFocus value={pending.weight}
+            <input autoFocus value={pending.weight} inputMode="decimal"
               onChange={(e) => setPending({ ...pending, weight: e.target.value })}
               onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
               placeholder="ex: 12.5"
