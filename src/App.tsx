@@ -5,6 +5,7 @@ import Scane from "./scane";
 import Tally from "./tally";
 import Hangar from "./hangar";
 import type { PointageData } from "./types";
+import { useWindowWidth } from "./useWindowWidth";
 
 type TabId = "excel-cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
@@ -22,6 +23,8 @@ export default function App() {
   const [active, setActive]           = useState<TabId>("excel-cleaner");
   const [dark, setDark]               = useState(true);
   const [pointageData, setPointageData] = useState<PointageData | null>(null);
+  const vw      = useWindowWidth();
+  const isMobile = vw < 640;
 
   const SURFACE = dark ? "#141414" : "#f0f0f0";
   const BORDER  = dark ? "#2a2a2a" : "#d0d0d0";
@@ -41,9 +44,11 @@ export default function App() {
       <nav style={{
         display: "flex", alignItems: "center", gap: 0,
         borderBottom: `1px solid ${BORDER}`,
-        background: SURFACE, paddingLeft: 16, paddingRight: 8,
+        background: SURFACE, paddingLeft: isMobile ? 4 : 16, paddingRight: 4,
+        overflowX: "auto", WebkitOverflowScrolling: "touch" as "touch",
+        scrollbarWidth: "none" as "none",
       }}>
-        <div style={{ display: "flex", flex: 1, alignItems: "flex-end" }}>
+        <div style={{ display: "flex", flex: 1, alignItems: "flex-end", flexShrink: 0 }}>
           {TABS.map((tab) => {
             const isActive = tab.id === active;
             return (
@@ -51,9 +56,9 @@ export default function App() {
                 key={tab.id}
                 onClick={() => setActive(tab.id)}
                 style={{
-                  fontFamily: MONO, fontSize: 11, letterSpacing: "0.13em",
-                  textTransform: "uppercase", padding: "12px 22px 10px",
-                  border: "none",
+                  fontFamily: MONO, fontSize: isMobile ? 10 : 11, letterSpacing: "0.1em",
+                  textTransform: "uppercase", padding: isMobile ? "10px 10px 8px" : "12px 22px 10px",
+                  border: "none", whiteSpace: "nowrap", flexShrink: 0,
                   borderBottom: isActive ? `2px solid ${ACCENT}` : "2px solid transparent",
                   background: "transparent", color: isActive ? ACCENT : MUTED,
                   cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
@@ -73,13 +78,13 @@ export default function App() {
           onClick={() => setDark((d) => !d)}
           style={{
             fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
-            textTransform: "uppercase", padding: "6px 14px",
+            textTransform: "uppercase", padding: isMobile ? "6px 8px" : "6px 14px",
             background: "transparent", border: `1px solid ${BORDER}`,
-            borderRadius: 3, color: MUTED, cursor: "pointer", marginLeft: 8,
+            borderRadius: 3, color: MUTED, cursor: "pointer", marginLeft: 4, flexShrink: 0,
             transition: "color 0.15s, border-color 0.15s",
           }}
         >
-          {dark ? "☀ Clair" : "☾ Sombre"}
+          {dark ? (isMobile ? "☀" : "☀ Clair") : (isMobile ? "☾" : "☾ Sombre")}
         </button>
       </nav>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useWindowWidth } from "./useWindowWidth";
 
 /* ─── localStorage helpers ─────────────────────────── */
 const LS = {
@@ -56,6 +57,10 @@ export default function Tally({ dark }: TallyProps) {
   const muted  = dark ? "#555"    : "#888";
   const border = dark ? "#222"    : "#ddd";
   const hdrBg  = dark ? "#0b0b0b" : "#f0f0f0";
+
+  const vw       = useWindowWidth();
+  const isMobile = vw < 640;
+  const pad      = isMobile ? "14px 10px" : "24px 28px";
 
   /* State — refreshed on every mount */
   const [headers, setHeaders]         = useState<string[]>([]);
@@ -240,7 +245,7 @@ export default function Tally({ dark }: TallyProps) {
   });
 
   return (
-    <div style={{ padding: "24px 28px", fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
+    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <span style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: accent, fontWeight: 600 }}>

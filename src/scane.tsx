@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import type { CellValue } from "./types";
+import { useWindowWidth } from "./useWindowWidth";
 
 /* ── BarcodeDetector type declaration (not yet in TS lib) ─────────── */
 interface BarcodeDetectorResult { rawValue: string; format: string; }
@@ -34,6 +35,10 @@ export default function Scane({ dark }: ScaneProps) {
   const accent  = dark ? "#6ee7b7" : "#059669";
   const muted   = dark ? "#555"    : "#888";
   const border  = dark ? "#2a2a2a" : "#d0d0d0";
+
+  const vw       = useWindowWidth();
+  const isMobile = vw < 640;
+  const pad      = isMobile ? "14px 10px" : "24px 28px";
 
   /* ── Pointage data ───────────────────────────────────────────── */
   const [headers,       setHeaders]       = useState<string[]>([]);
@@ -218,7 +223,7 @@ export default function Scane({ dark }: ScaneProps) {
   const selectedDest = destinations.find((d) => d.id === selectedDestId) ?? null;
 
   return (
-    <div style={{ padding: "24px 28px", fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
+    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box", overflowX: "hidden" }}>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -275,14 +280,15 @@ export default function Scane({ dark }: ScaneProps) {
       </div>
 
       {/* Camera + Controls */}
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row" }}>
 
         {/* Video */}
         <div style={{ position: "relative", borderRadius: 8, overflow: "hidden",
           border: `2px solid ${flashColor ?? border}`,
           boxShadow: flashColor ? `0 0 20px ${flashColor}55` : "none",
           transition: "border-color 0.15s, box-shadow 0.15s",
-          width: 480, minHeight: 270,
+          width: isMobile ? "100%" : 480, aspectRatio: isMobile ? "4/3" : undefined,
+          minHeight: isMobile ? undefined : 270,
           background: dark ? "#0a0a0a" : "#ddd",
           display: "flex", alignItems: "center", justifyContent: "center" }}>
           <video ref={videoRef} playsInline muted
@@ -314,7 +320,7 @@ export default function Scane({ dark }: ScaneProps) {
         </div>
 
         {/* Right panel */}
-        <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: isMobile ? "unset" : 240, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 12 }}>
           <button onClick={cameraOn ? stopCamera : startCamera}
             style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.1em", padding: "10px 18px",
               background: cameraOn ? (dark?"#2d0a0a":"#fee2e2") : (dark?"#0a200f":"#dcfce7"),

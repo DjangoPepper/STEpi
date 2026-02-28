@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import * as XLSX from "xlsx";
 import type { CellValue } from "./types";
+import { useWindowWidth } from "./useWindowWidth";
 
 /* ── BarcodeDetector type ─────────────────────────────────────────── */
 interface BarcodeDetectorResult { rawValue: string; }
@@ -28,17 +29,6 @@ const MONO  = "'IBM Plex Mono', 'Fira Mono', monospace";
 const newId = () => `hl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 const fmtW  = (w: number | null) =>
   w === null ? "—" : w.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
-
-/* ── Responsive hook ───────────────────────────────────────── */
-function useWindowWidth() {
-  const [width, setWidth] = useState(() => window.innerWidth);
-  useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return width;
-}
 
 export default function Hangar({ dark }: HangarProps) {
   const bg      = dark ? "#0d0d0d" : "#f5f5f5";

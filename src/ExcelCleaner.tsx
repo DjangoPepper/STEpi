@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import * as XLSX from "xlsx";
 import type { PointageData } from "./types";
+import { useWindowWidth } from "./useWindowWidth";
 
 type CellValue = string | number | boolean | null;
 type RawData = CellValue[][];
@@ -75,7 +76,7 @@ function AddRowModal({
         style={{
           background: dark ? "#141414" : "#fff",
           border: `1px solid ${dark ? "#2a2a2a" : "#ddd"}`,
-          borderRadius: 6, padding: 28, minWidth: 360, maxWidth: 600,
+          borderRadius: 6, padding: 28, minWidth: "min(360px, calc(100vw - 32px))", maxWidth: 600,
           maxHeight: "80vh", overflowY: "auto",
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}
@@ -141,6 +142,8 @@ function AddRowModal({
 }
 
 export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSendToPointage }: ExcelCleanerProps) {
+  const vw       = useWindowWidth();
+  const isMobile = vw < 640;
   const [fileName, setFileName] = useState<string | null>(null);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -485,9 +488,9 @@ export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSend
         />
       )}
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "16px 10px" : "32px 24px" }}>
         {/* Top bar */}
-        <div style={{ marginBottom: 32, borderBottom: `1px solid ${t.border}`, paddingBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div style={{ marginBottom: isMobile ? 16 : 32, borderBottom: `1px solid ${t.border}`, paddingBottom: isMobile ? 12 : 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ fontSize: 10, letterSpacing: "0.2em", color: t.textDim, textTransform: "uppercase", marginBottom: 8 }}>Outil de nettoyage</div>
             <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", color: t.text, fontFamily: "Space Grotesk, sans-serif" }}>
