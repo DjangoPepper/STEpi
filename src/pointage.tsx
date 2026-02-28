@@ -133,6 +133,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
   const [destinations, setDestinations]   = useState<DestConfig[]>(() => LS.get<DestConfig[]>("ptg_destinations", []));
   const [selectedDestId, setSelectedDestId] = useState<string | null>(() => LS.get<string | null>("ptg_selectedDestId", null));
   const [rowDestMap, setRowDestMap]         = useState<Record<number, string>>(() => LS.get<Record<number, string>>("ptg_rowDestMap", {}));
+  const [forcedDestIds, setForcedDestIds]   = useState<string[]>(() => LS.get<string[]>("ptg_forceddests", []));
   const [destPanelOpen, setDestPanelOpen]   = useState(true);
   const [newDestName, setNewDestName]       = useState("");
   const [editingDestId, setEditingDestId]   = useState<string | null>(null);
@@ -153,10 +154,11 @@ export default function Pointage({ dark, initialData }: PointageProps) {
   useEffect(() => { LS.set("ptg_sortCol",      sortCol);       }, [sortCol]);
   useEffect(() => { LS.set("ptg_sortDir",      sortDir);       }, [sortDir]);
   useEffect(() => { LS.set("ptg_fmtPattern",   fmtPattern);    }, [fmtPattern]);
-  useEffect(() => { LS.set("ptg_destinations", destinations);  }, [destinations]);
+  useEffect(() => { LS.set("ptg_destinations",  destinations);  }, [destinations]);
   useEffect(() => { LS.set("ptg_selectedDestId", selectedDestId); }, [selectedDestId]);
-  useEffect(() => { LS.set("ptg_rowDestMap",   rowDestMap);    }, [rowDestMap]);
-  useEffect(() => { LS.set("ptg_history",      history);       }, [history]);
+  useEffect(() => { LS.set("ptg_rowDestMap",    rowDestMap);    }, [rowDestMap]);
+  useEffect(() => { LS.set("ptg_forceddests",   forcedDestIds); }, [forcedDestIds]);
+  useEffect(() => { LS.set("ptg_history",       history);       }, [history]);
 
   /* load */
   const loadFile = useCallback((file: File) => {
@@ -194,6 +196,14 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     const idx = rows.map((_, i) => i);
     if (sortCol === null || sortDir === "none") return idx;
     const dir = sortDir === "asc" ? 1 : -1;
+    if (sortCol === -1) {
+      // sort by destination name
+      return [...idx].sort((a, b) => {
+        const da = destinations.find(d => d.id === rowDestMap[a])?.name ?? "";
+        const db = destinations.find(d => d.id === rowDestMap[b])?.name ?? "";
+        return da.localeCompare(db) * dir;
+      });
+    }
     return [...idx].sort((a, b) => {
       const va = rows[a][sortCol], vb = rows[b][sortCol];
       if (va == null && vb == null) return 0;
@@ -244,6 +254,21 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     setDestinations((p) => p.filter((d) => d.id !== id));
     if (selectedDestId === id) setSelectedDestId(null);
     setRowDestMap((p) => { const n = { ...p }; Object.keys(n).forEach((k) => { if (n[+k] === id) delete n[+k]; }); return n; });
+    setForcedDestIds((p) => p.filter(i => i !== id));
+  };
+  const moveDest = (id: string, dir: -1 | 1) => {
+    setDestinations(prev => {
+      const idx = prev.findIndex(d => d.id === id);
+      if (idx < 0) return prev;
+      const next = idx + dir;
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  };
+  const toggleForced = (id: string) => {
+    setForcedDestIds(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
   };
   const getDestById = (id?: string | null) => destinations.find((d) => d.id === id);
 
@@ -408,8 +433,18 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                             {dest.name}
                           </span>
                           {isSel && <span style={{ fontSize: 9, opacity: 0.85 }}>✓</span>}
-                          <span title="Supprimer"
-                            onClick={(e) => { e.stopPropagation(); removeDest(dest.id); }}
+                          <span title="Monter" onClick={(e) => { e.stopPropagation(); moveDest(dest.id, -1); }}
+                            style={{ fontSize: 11, opacity: 0.6, cursor: "pointer", lineHeight: 1 }}>↑</span>
+                          <span title="Descendre" onClick={(e) => { e.stopPropagation(); moveDest(dest.id, 1); }}
+                            style={{ fontSize: 11, opacity: 0.6, cursor: "pointer", lineHeight: 1 }}>↓</span>
+                          <span
+                            title={forcedDestIds.includes(dest.id) ? "Retirer du tally forcé" : "Forcer à 0 dans le tally"}
+                            onClick={(e) => { e.stopPropagation(); toggleForced(dest.id); }}
+                            style={{ fontSize: 9, opacity: forcedDestIds.includes(dest.id) ? 1 : 0.45,
+                              cursor: "pointer", fontWeight: 700, letterSpacing: 0,
+                              background: forcedDestIds.includes(dest.id) ? "rgba(255,255,255,0.25)" : "transparent",
+                              borderRadius: 2, padding: "0 3px" }}>0</span>
+                          <span title="Supprimer" onClick={(e) => { e.stopPropagation(); removeDest(dest.id); }}
                             style={{ fontSize: 10, opacity: 0.55, cursor: "pointer" }}>✕</span>
                         </>
                       )}
@@ -480,7 +515,13 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                           <span>{h}</span>
-                          {!isDestCol && (
+                          {isDestCol ? (
+                            <button onClick={() => cycleSortCol(-1)} title="Trier par destination"
+                              style={{ background: "transparent", border: "none", cursor: "pointer",
+                                padding: "0 2px", display: "flex", alignItems: "center" }}>
+                              {sortIcon(-1)}
+                            </button>
+                          ) : (
                             <>
                               {/* Sort */}
                               <button onClick={() => cycleSortCol(ci)} title="Trier"

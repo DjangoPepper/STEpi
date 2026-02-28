@@ -65,6 +65,9 @@ export default function Tally({ dark }: TallyProps) {
   /* Maxi per destination id — editable, persisted */
   const [maxi, setMaxi] = useState<Record<string, string>>({});
 
+  /* Forced-to-zero destinations (ids) */
+  const [forcedDestIds, setForcedDestIds] = useState<string[]>([]);
+
   /* Weight column: -1 = none; index = chosen column. Persisted in localStorage. */
   const [weightCol, setWeightCol] = useState<number>(-2); // -2 = not yet initialised
 
@@ -78,6 +81,7 @@ export default function Tally({ dark }: TallyProps) {
     setDestinations(dsts);
     setRowDestMap(rdm);
     setMaxi(LS.get<Record<string, string>>("tly_maxi", {}));
+    setForcedDestIds(LS.get<string[]>("ptg_forceddests", []));
     // Restore or auto-detect weight column
     const saved = LS.get<number | null>("tly_weightCol", null);
     if (saved !== null) {
@@ -110,7 +114,7 @@ export default function Tally({ dark }: TallyProps) {
   }
 
   const tallyRows = [...tallyMap.values()].filter(r => r.count > 0 || r.dest !== null);
-  const assignedRows   = tallyRows.filter(r => r.dest !== null && r.count > 0);
+  const assignedRows   = tallyRows.filter(r => r.dest !== null && (r.count > 0 || forcedDestIds.includes(r.dest.id)));
   const unassigned     = tallyMap.get(null)!;
   const assignedCount  = assignedRows.reduce((s, r) => s + r.count, 0);
   const assignedWeight = assignedRows.reduce((s, r) => s + r.weight, 0);
