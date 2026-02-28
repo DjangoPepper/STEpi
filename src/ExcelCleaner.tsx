@@ -140,7 +140,7 @@ function AddRowModal({
   );
 }
 
-export default function ExcelCleaner({ dark, onDarkToggle, onSendToPointage }: ExcelCleanerProps) {
+export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSendToPointage }: ExcelCleanerProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [sheetNames, setSheetNames] = useState<string[]>([]);

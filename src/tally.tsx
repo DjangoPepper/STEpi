@@ -189,11 +189,6 @@ export default function Tally({ dark }: TallyProps) {
   const setPrevPVal = (id: string, v: string) => { const n = {...prevP,[id]:v}; setPrevP(n); try{localStorage.setItem("tly_prevp",JSON.stringify(n));}catch{} };
   const blurPrevQ   = (id: string, v: string) => { const f=fmtInput(v); if(f!==v) setPrevQVal(id,f); };
   const blurPrevP   = (id: string, v: string) => { const f=fmtInput(v); if(f!==v) setPrevPVal(id,f); };
-  const addExtraRow = (afterDestId: string) => {
-    const nr: ExtraRow = {id: `er_${Date.now()}`, afterDestId, label:"", q:"", p:""};
-    const n = [...extraRows, nr];
-    setExtraRows(n); try{localStorage.setItem("tly_extrarows",JSON.stringify(n));}catch{};
-  };
   const updateExtra = (id: string, field: keyof ExtraRow, val: string) => {
     const n = extraRows.map(r => r.id===id ? {...r,[field]:val} : r);
     setExtraRows(n); try{localStorage.setItem("tly_extrarows",JSON.stringify(n));}catch{};
