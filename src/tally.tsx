@@ -453,19 +453,17 @@ export default function Tally({ dark }: TallyProps) {
               })}
               {/* Total */}
               {(() => {
-                const totTTLQ = assignedRows.reduce((s,r) => {
-                  const pq = parseRaw(prevQ[r.dest!.id]??""); return s + r.count + (isNaN(pq)?0:pq);
-                }, 0);
-                const totTTLP = assignedRows.reduce((s,r) => {
-                  const pp = parseRaw(prevP[r.dest!.id]??""); return s + r.weight + (isNaN(pp)?0:pp);
-                }, 0);
+                const totPrevQ = assignedRows.reduce((s,r) => { const pq = parseRaw(prevQ[r.dest!.id]??""); return s + (isNaN(pq)?0:pq); }, 0);
+                const totPrevP = assignedRows.reduce((s,r) => { const pp = parseRaw(prevP[r.dest!.id]??""); return s + (isNaN(pp)?0:pp); }, 0);
+                const totTTLQ = assignedCount + totPrevQ;
+                const totTTLP = assignedWeight + totPrevP;
                 return (
                   <tr style={{ background: dark ? "#0e2016" : "#e8f5ee" }}>
                     <td style={cellStyle({ color: accent, fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 700 })}>Total</td>
                     <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{assignedCount.toLocaleString("fr-FR")}</td>
                     {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{fmtWeight(assignedWeight)}</td>}
-                    <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>
-                    {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>}
+                    <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{totPrevQ.toLocaleString("fr-FR")}</td>
+                    {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{fmtWeight(totPrevP)}</td>}
                     <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: dark ? "#6ee7b7" : "#059669" })}>{totTTLQ.toLocaleString("fr-FR")}</td>
                     {hasWeight && <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: dark ? "#6ee7b7" : "#059669" })}>{fmtWeight(totTTLP)}</td>}
                     <td style={cellStyle({})}></td>

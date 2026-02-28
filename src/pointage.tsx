@@ -1,22 +1,9 @@
-import { useState, useCallback, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
+import { useState, useRef, useEffect, type CSSProperties } from "react";
 import * as XLSX from "xlsx";
 import type { PointageData } from "./types";
+import type { CellValue } from "./types";
 
-/* ─── localStorage helpers ─────────────────────────── */
-const LS = {
-  get<T>(key: string, fallback: T): T {
-    try {
-      const v = localStorage.getItem(key);
-      return v !== null ? (JSON.parse(v) as T) : fallback;
-    } catch { return fallback; }
-  },
-  set(key: string, value: unknown): void {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota exceeded: ignore */ }
-  },
-};
-
-/* ─── Types ──────────────────────────────────────────────── */
-type CellValue = string | number | boolean | null;
+/* ─── Types ─────────────────────────────────────────────── */
 type SortDir = "none" | "asc" | "desc";
 
 interface DestConfig {
@@ -31,16 +18,29 @@ interface HistoryEntry {
   destId: string | null;
 }
 
-/* ─── Constants ──────────────────────────────────────────── */
+/* ─── Constants ─────────────────────────────────────────── */
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
 
 const DEST_PALETTE = [
-  "#c0392b", "#2980b9", "#27ae60", "#8e44ad",
-  "#e67e22", "#16a085", "#d35400", "#1abc9c",
-  "#6c3483", "#1a5276", "#0e6251", "#922b21",
+  "#FF6200", "#0091D5", "#00A550", "#9B2FAD",
+  "#FA008C", "#00B4AE", "#E4A600", "#D4006E",
+  "#006AB3", "#007857", "#FF3A20", "#6A1FAD",
 ];
 
-/* ─── Utility ────────────────────────────────────────────── */
+/* ─── localStorage helpers ──────────────────────────────── */
+const LS = {
+  get<T>(key: string, fallback: T): T {
+    try {
+      const v = localStorage.getItem(key);
+      return v !== null ? (JSON.parse(v) as T) : fallback;
+    } catch { return fallback; }
+  },
+  set<T>(key: string, val: T) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
+  },
+};
+
+/* ─── Utilities ─────────────────────────────────────────── */
 function cellStr(v: CellValue): string {
   return v == null ? "" : String(v);
 }
@@ -60,144 +60,119 @@ function applyFormat(value: string, pattern: string): string {
 }
 
 function detectHeaderRow(raw: CellValue[][]): { headers: string[]; rows: CellValue[][] } {
-  if (!raw.length) return { headers: [], rows: [] };
-  let hi = 0;
+  if (raw.length === 0) return { headers: [], rows: [] };
+  let headerIdx = 0;
   for (let i = 0; i < Math.min(5, raw.length); i++) {
     const row = raw[i];
-    const filled = row.filter((c) => c != null && c !== "").length;
-    const strings = row.filter((c) => typeof c === "string" && (c as string).trim() !== "").length;
-    if (filled > 0 && strings / filled > 0.6) { hi = i; break; }
+    const filled = row.filter((c) => c !== null && c !== undefined && c !== "").length;
+    const strings = row.filter((c) => typeof c === "string" && c.trim() !== "").length;
+    if (filled > 0 && strings / filled > 0.6) { headerIdx = i; break; }
   }
-  const headers = raw[hi].map((h, i) =>
-    h != null && h !== "" ? String(h) : `Col ${i + 1}`
+  const headers = raw[headerIdx].map((h, i) =>
+    h !== null && h !== undefined && h !== "" ? String(h) : `Col ${i + 1}`
   );
-  return { headers, rows: raw.slice(hi + 1) };
+  return { headers, rows: raw.slice(headerIdx + 1) };
 }
 
-/* ─── Collapsible panel ──────────────────────────────────── */
-interface PanelProps {
-  title: string; open: boolean; onToggle: () => void;
-  accent: string; border: string; surface: string;
-  children: ReactNode;
-}
-function Panel({ title, open, onToggle, accent, border, surface, children }: PanelProps) {
-  return (
-    <div style={{ border: `1px solid ${border}`, borderRadius: 6, marginBottom: 16, overflow: "hidden" }}>
-      <div
-        onClick={onToggle}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px", borderBottom: open ? `1px solid ${border}` : "none",
-          cursor: "pointer", userSelect: "none", background: surface,
-          fontSize: 11, letterSpacing: "0.13em", textTransform: "uppercase",
-          color: accent, fontFamily: MONO,
-        }}
-      >
-        <span>{title}</span>
-        <span style={{ fontSize: 12 }}>{open ? "▲" : "▼"}</span>
-      </div>
-      {open && children}
-    </div>
-  );
+/* ─── Props ─────────────────────────────────────────────── */
+interface PointageProps {
+  dark: boolean;
+  initialData: PointageData | null;
 }
 
-/* ─── Main component ─────────────────────────────────────── */
-interface PointageProps { dark: boolean; initialData?: PointageData | null; }
-
+/* ═══════════════════ COMPONENT ════════════════════════════ */
 export default function Pointage({ dark, initialData }: PointageProps) {
-  /* theme */
+  /* Theme */
   const bg      = dark ? "#0d0d0d" : "#f5f5f5";
-  const surface = dark ? "#141414" : "#ffffff";
-  const border  = dark ? "#2a2a2a" : "#e0e0e0";
+  const surface = dark ? "#141414" : "#fff";
   const text    = dark ? "#e8e8e0" : "#1a1a1a";
-  const muted   = dark ? "#555"    : "#999";
   const accent  = dark ? "#6ee7b7" : "#059669";
-  const hdrBg   = dark ? "#1a1a1a" : "#f0f0f0";
-  const rowAlt  = dark ? "#161616" : "#fafafa";
+  const muted   = dark ? "#555"    : "#888";
+  const border  = dark ? "#222"    : "#ddd";
+  const hdrBg   = dark ? "#0b0b0b" : "#f0f0f0";
+  const rowAlt  = dark ? "#111"    : "#f9f9f9";
 
-  /* data — initialized from localStorage */
-  const [headers, setHeaders]   = useState<string[]>(() => LS.get<string[]>("ptg_headers", []));
-  const [rows, setRows]         = useState<CellValue[][]>(() => LS.get<CellValue[][]>("ptg_rows", []));
+  /* File state */
+  const [headers, setHeaders] = useState<string[]>(() => LS.get<string[]>("ptg_headers", []));
+  const [rows, setRows]       = useState<CellValue[][]>(() => LS.get<CellValue[][]>("ptg_rows", []));
   const [fileName, setFileName] = useState<string | null>(() => LS.get<string | null>("ptg_fileName", null));
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* sort */
+  /* Sort */
   const [sortCol, setSortCol] = useState<number | null>(() => LS.get<number | null>("ptg_sortCol", null));
   const [sortDir, setSortDir] = useState<SortDir>(() => LS.get<SortDir>("ptg_sortDir", "none"));
 
-  /* format patterns */
+  /* Format patterns */
   const [fmtPattern, setFmtPattern] = useState<Record<number, string>>(() => LS.get<Record<number, string>>("ptg_fmtPattern", {}));
   const [fmtOpen, setFmtOpen]       = useState<Record<number, boolean>>({});
 
-  /* destinations */
-  const [destinations, setDestinations]   = useState<DestConfig[]>(() => LS.get<DestConfig[]>("ptg_destinations", []));
+  /* Destinations */
+  const [destinations, setDestinations]     = useState<DestConfig[]>(() => LS.get<DestConfig[]>("ptg_destinations", []));
   const [selectedDestId, setSelectedDestId] = useState<string | null>(() => LS.get<string | null>("ptg_selectedDestId", null));
   const [rowDestMap, setRowDestMap]         = useState<Record<number, string>>(() => LS.get<Record<number, string>>("ptg_rowDestMap", {}));
   const [forcedDestIds, setForcedDestIds]   = useState<string[]>(() => LS.get<string[]>("ptg_forceddests", []));
-  const [destPanelOpen, setDestPanelOpen]   = useState(true);
   const [newDestName, setNewDestName]       = useState("");
   const [editingDestId, setEditingDestId]   = useState<string | null>(null);
   const [editingDestName, setEditingDestName] = useState("");
 
-  /* search */
+  /* Search */
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchPanelOpen, setSearchPanelOpen] = useState(true);
 
-  /* history */
-  const [history, setHistory]           = useState<HistoryEntry[]>(() => LS.get<HistoryEntry[]>("ptg_history", []));
-  const [histPanelOpen, setHistPanelOpen] = useState(true);
+  /* History */
+  const [history, setHistory] = useState<HistoryEntry[]>(() => LS.get<HistoryEntry[]>("ptg_history", []));
 
-  /* ─── Persist state to localStorage on every change ────────── */
+  /* Panel open states — independent */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [destOpen,   setDestOpen]   = useState(false);
+  const [histOpen,   setHistOpen]   = useState(false);
+
+  /* ─── Persist ───────────────────────────────────────────── */
   useEffect(() => { LS.set("ptg_headers",      headers);       }, [headers]);
   useEffect(() => { LS.set("ptg_rows",         rows);          }, [rows]);
   useEffect(() => { LS.set("ptg_fileName",     fileName);      }, [fileName]);
   useEffect(() => { LS.set("ptg_sortCol",      sortCol);       }, [sortCol]);
   useEffect(() => { LS.set("ptg_sortDir",      sortDir);       }, [sortDir]);
   useEffect(() => { LS.set("ptg_fmtPattern",   fmtPattern);    }, [fmtPattern]);
-  useEffect(() => { LS.set("ptg_destinations",  destinations);  }, [destinations]);
+  useEffect(() => { LS.set("ptg_destinations", destinations);  }, [destinations]);
   useEffect(() => { LS.set("ptg_selectedDestId", selectedDestId); }, [selectedDestId]);
-  useEffect(() => { LS.set("ptg_rowDestMap",    rowDestMap);    }, [rowDestMap]);
-  useEffect(() => { LS.set("ptg_forceddests",   forcedDestIds); }, [forcedDestIds]);
-  useEffect(() => { LS.set("ptg_history",       history);       }, [history]);
+  useEffect(() => { LS.set("ptg_rowDestMap",   rowDestMap);    }, [rowDestMap]);
+  useEffect(() => { LS.set("ptg_forceddests",  forcedDestIds); }, [forcedDestIds]);
+  useEffect(() => { LS.set("ptg_history",      history);       }, [history]);
 
-  /* load */
-  const loadFile = useCallback((file: File) => {
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const buf = new Uint8Array(e.target!.result as ArrayBuffer);
-      const wb  = XLSX.read(buf, { type: "array" });
-      const ws  = wb.Sheets[wb.SheetNames[0]];
-      const raw: CellValue[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      const { headers: h, rows: r } = detectHeaderRow(raw);
-      setHeaders(h); setRows(r);
-      setSortCol(null); setSortDir("none");
-      setFmtPattern({}); setFmtOpen({});
-      setRowDestMap({}); setHistory([]);
-      setSearchQuery("");
-    };
-    reader.readAsArrayBuffer(file);
-  }, []);
-
-  /* load from ExcelCleaner when initialData changes */
+  /* ─── Load from initialData (bridge from ExcelCleaner) ─── */
   useEffect(() => {
     if (!initialData) return;
-    setFileName(initialData.fileName);
     setHeaders(initialData.headers);
-    setRows(initialData.rows as CellValue[][]);
-    setSortCol(null); setSortDir("none");
-    setFmtPattern({}); setFmtOpen({});
-    setRowDestMap({}); setHistory([]);
-    setSearchQuery("");
+    setRows(initialData.rows);
+    setFileName(initialData.fileName);
+    setRowDestMap({});
+    setHistory([]);
+    setSortCol(null);
+    setSortDir("none");
   }, [initialData]);
 
-  /* sorted indices */
+  /* ─── File loading ──────────────────────────────────────── */
+  const loadFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target!.result as ArrayBuffer);
+      const wb   = XLSX.read(data, { type: "array" });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const raw  = XLSX.utils.sheet_to_json<CellValue[]>(ws, { header: 1, defval: null }) as CellValue[][];
+      const { headers: h, rows: r } = detectHeaderRow(raw);
+      setHeaders(h); setRows(r); setFileName(file.name);
+      setRowDestMap({}); setHistory([]);
+      setSortCol(null); setSortDir("none");
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  /* ─── Sorted + filtered indices ─────────────────────────── */
   const sortedIndices = (() => {
     const idx = rows.map((_, i) => i);
     if (sortCol === null || sortDir === "none") return idx;
     const dir = sortDir === "asc" ? 1 : -1;
     if (sortCol === -1) {
-      // sort by destination name
       return [...idx].sort((a, b) => {
         const da = destinations.find(d => d.id === rowDestMap[a])?.name ?? "";
         const db = destinations.find(d => d.id === rowDestMap[b])?.name ?? "";
@@ -213,7 +188,6 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     });
   })();
 
-  /* filtered sorted indices (search) */
   const filteredIndices = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sortedIndices;
@@ -236,7 +210,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
       : <span style={{ color: accent, fontSize: 11, lineHeight: 1 }}>↑</span>;
   };
 
-  /* destinations */
+  /* ─── Destinations ──────────────────────────────────────── */
   const addDestination = () => {
     const name = newDestName.trim(); if (!name) return;
     const color = DEST_PALETTE[destinations.length % DEST_PALETTE.length];
@@ -272,17 +246,17 @@ export default function Pointage({ dark, initialData }: PointageProps) {
   };
   const getDestById = (id?: string | null) => destinations.find((d) => d.id === id);
 
-  /* row click */
+  /* ─── Row click ─────────────────────────────────────────── */
   const handleRowClick = (rowIndex: number) => {
     if (selectedDestId) setRowDestMap((p) => ({ ...p, [rowIndex]: selectedDestId }));
     setHistory((p) => [{ rowIndex, row: rows[rowIndex], destId: selectedDestId }, ...p].slice(0, 10));
   };
 
-  /* close all format popovers except one */
+  /* ─── Format popover ────────────────────────────────────── */
   const closeAllFmt = (except?: number) =>
     setFmtOpen((p) => { const n: Record<number, boolean> = {}; if (except !== undefined) n[except] = !p[except]; return n; });
 
-  /* inline style helpers */
+  /* ─── Style helpers ─────────────────────────────────────── */
   const inpStyle = (extra?: CSSProperties): CSSProperties => ({
     fontFamily: MONO, fontSize: 11, padding: "6px 10px",
     background: dark ? "#0d0d0d" : "#f8f8f8",
@@ -300,7 +274,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     <div style={{ background: bg, minHeight: "calc(100vh - 44px)", color: text, fontFamily: MONO }}
       onClick={() => closeAllFmt()}>
 
-      {/* Upload zone — ExcelCleaner style */}
+      {/* ── Upload zone ─────────────────────────────────────── */}
       {rows.length === 0 && (
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
           <div
@@ -322,8 +296,12 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             }}
           >
             <div style={{ fontSize: 32, marginBottom: 16, opacity: 0.2, color: text }}>⊞</div>
-            <div style={{ fontSize: 13, color: muted, marginBottom: 8 }}>Glissez un fichier Excel ou cliquez pour sélectionner</div>
-            <div style={{ fontSize: 10, color: dark ? "#3a3a3a" : "#ccc", letterSpacing: "0.1em", textTransform: "uppercase" }}>.xlsx · .xls · .csv</div>
+            <div style={{ fontSize: 13, color: muted, marginBottom: 8 }}>
+              Glissez un fichier Excel ou cliquez pour sélectionner
+            </div>
+            <div style={{ fontSize: 10, color: dark ? "#3a3a3a" : "#ccc", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              .xlsx · .xls · .csv
+            </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
           </div>
@@ -334,7 +312,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
         <div style={{ padding: "20px 24px" }}>
 
           {/* File bar */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <span style={{ fontSize: 11, color: muted }}>
               {fileName}&nbsp;—&nbsp;{rows.length} lignes&nbsp;·&nbsp;{headers.length} colonnes
             </span>
@@ -343,7 +321,6 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                 setRows([]); setHeaders([]); setFileName(null);
                 setRowDestMap({}); setHistory([]);
                 setSortCol(null); setSortDir("none");
-                setFmtPattern({}); setSearchQuery("");
               }}
               style={{ ...btnStyle(), background: "transparent", border: `1px solid ${border}`, color: muted }}
             >
@@ -351,40 +328,128 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             </button>
           </div>
 
-          {/* ══ SEARCH ══ */}
-          <Panel title="Recherche" open={searchPanelOpen} onToggle={() => setSearchPanelOpen((v) => !v)}
-            accent={accent} border={border} surface={surface}>
-            <div style={{ padding: "12px 16px" }}>
+          {/* ══ PANEL TOGGLE TOOLBAR ══ */}
+          <div style={{
+            display: "flex", gap: 6, marginBottom: 0,
+            borderBottom: `1px solid ${border}`,
+            background: surface,
+            borderRadius: "4px 4px 0 0",
+            padding: "6px 10px",
+          }}>
+            {/* Recherche button */}
+            <button
+              onClick={() => setSearchOpen(v => !v)}
+              style={{
+                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
+                textTransform: "uppercase", padding: "5px 14px",
+                background: searchOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
+                border: `1px solid ${searchOpen ? accent : border}`,
+                borderRadius: 3, color: searchOpen ? accent : muted,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              ⌕ Recherche
+              {searchQuery && (
+                <span style={{ background: accent, color: "#000", borderRadius: 2,
+                  padding: "0 5px", fontSize: 9, fontWeight: 700 }}>
+                  {filteredIndices.length}
+                </span>
+              )}
+              <span style={{ fontSize: 9, opacity: 0.6 }}>{searchOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {/* Destinations button */}
+            <button
+              onClick={() => setDestOpen(v => !v)}
+              style={{
+                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
+                textTransform: "uppercase", padding: "5px 14px",
+                background: destOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
+                border: `1px solid ${destOpen ? accent : border}`,
+                borderRadius: 3, color: destOpen ? accent : muted,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              Destinations
+              {destinations.length > 0 && (
+                <span style={{ background: dark ? "#222" : "#eee", color: muted,
+                  borderRadius: 2, padding: "0 5px", fontSize: 9 }}>
+                  {destinations.length}
+                </span>
+              )}
+              {selectedDestId && getDestById(selectedDestId) && (() => {
+                const d = getDestById(selectedDestId)!;
+                return (
+                  <span style={{ background: d.color, color: "#fff",
+                    borderRadius: 2, padding: "0 6px", fontSize: 9, fontWeight: 700 }}>
+                    {d.name}
+                  </span>
+                );
+              })()}
+              <span style={{ fontSize: 9, opacity: 0.6 }}>{destOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {/* Historique button */}
+            <button
+              onClick={() => setHistOpen(v => !v)}
+              style={{
+                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
+                textTransform: "uppercase", padding: "5px 14px",
+                background: histOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
+                border: `1px solid ${histOpen ? accent : border}`,
+                borderRadius: 3, color: histOpen ? accent : muted,
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              Historique
+              {history.length > 0 && (
+                <span style={{ background: dark ? "#222" : "#eee", color: muted,
+                  borderRadius: 2, padding: "0 5px", fontSize: 9 }}>
+                  {history.length}
+                </span>
+              )}
+              <span style={{ fontSize: 9, opacity: 0.6 }}>{histOpen ? "▲" : "▼"}</span>
+            </button>
+          </div>
+
+          {/* ══ SEARCH PANEL ══ */}
+          {searchOpen && (
+            <div style={{
+              background: surface, border: `1px solid ${border}`,
+              borderTop: "none", padding: "12px 16px", marginBottom: 0,
+            }}>
               <div style={{
                 display: "flex", alignItems: "center",
                 border: `1px solid ${searchQuery ? accent : border}`, borderRadius: 4,
                 background: dark ? "#0d0d0d" : "#f8f8f8",
-                transition: "border-color 0.15s",
               }}>
                 <span style={{ padding: "6px 10px", color: muted, fontSize: 13, flexShrink: 0 }}>⌕</span>
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Recherche dans toutes les colonnes…"
-                  style={{ ...inpStyle(), flex: 1, border: "none", borderRadius: 0, background: "transparent", padding: "6px 10px 6px 0" }}
+                  style={{ ...inpStyle(), flex: 1, border: "none", background: "transparent", padding: "6px 10px 6px 0" }}
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery("")}
-                    style={{ background: "transparent", border: "none", color: muted, cursor: "pointer", padding: "6px 10px", fontSize: 13, flexShrink: 0 }}>✕</button>
+                    style={{ background: "transparent", border: "none", color: muted,
+                      cursor: "pointer", padding: "6px 10px", fontSize: 13 }}>✕</button>
                 )}
               </div>
               {searchQuery && (
-                <div style={{ fontSize: 10, color: accent, letterSpacing: "0.08em", marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: accent, marginTop: 8 }}>
                   {filteredIndices.length}&nbsp;/&nbsp;{rows.length} lignes
                 </div>
               )}
             </div>
-          </Panel>
+          )}
 
-          {/* ══ DESTINATIONS ══ */}
-          <Panel title="Destinations" open={destPanelOpen} onToggle={() => setDestPanelOpen((v) => !v)}
-            accent={accent} border={border} surface={surface}>
-            <div style={{ padding: 16 }}>
+          {/* ══ DESTINATIONS PANEL ══ */}
+          {destOpen && (
+            <div style={{
+              background: surface, border: `1px solid ${border}`,
+              borderTop: "none", padding: 16, marginBottom: 0,
+            }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 <input
                   value={newDestName}
@@ -414,7 +479,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                         background: dest.color, color: "#fff",
                         fontSize: 11, cursor: "pointer", fontFamily: MONO,
                         outline: isSel ? "2px solid #fff" : "none", outlineOffset: 2,
-                        opacity: isSel ? 1 : 0.72, transition: "opacity 0.15s",
+                        opacity: isSel ? 1 : 0.78, transition: "opacity 0.15s",
                       }}
                     >
                       {isEdit ? (
@@ -440,10 +505,12 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                           <span
                             title={forcedDestIds.includes(dest.id) ? "Retirer du tally forcé" : "Forcer à 0 dans le tally"}
                             onClick={(e) => { e.stopPropagation(); toggleForced(dest.id); }}
-                            style={{ fontSize: 9, opacity: forcedDestIds.includes(dest.id) ? 1 : 0.45,
-                              cursor: "pointer", fontWeight: 700, letterSpacing: 0,
+                            style={{
+                              fontSize: 9, cursor: "pointer", fontWeight: 700,
+                              opacity: forcedDestIds.includes(dest.id) ? 1 : 0.45,
                               background: forcedDestIds.includes(dest.id) ? "rgba(255,255,255,0.25)" : "transparent",
-                              borderRadius: 2, padding: "0 3px" }}>0</span>
+                              borderRadius: 2, padding: "0 3px",
+                            }}>0</span>
                           <span title="Supprimer" onClick={(e) => { e.stopPropagation(); removeDest(dest.id); }}
                             style={{ fontSize: 10, opacity: 0.55, cursor: "pointer" }}>✕</span>
                         </>
@@ -454,19 +521,21 @@ export default function Pointage({ dark, initialData }: PointageProps) {
               </div>
               {selectedDestId && (
                 <div style={{ fontSize: 10, color: muted, marginTop: 10 }}>
-                  Cliquez une ligne pour l'assigner à «&nbsp;
+                  Cliquez une ligne du tableau pour l'assigner à «&nbsp;
                   <span style={{ color: getDestById(selectedDestId)?.color }}>
                     {getDestById(selectedDestId)?.name}
                   </span>&nbsp;». Double-clic sur un nom pour le renommer.
                 </div>
               )}
             </div>
-          </Panel>
+          )}
 
-          {/* ══ HISTORY ══ */}
-          <Panel title={`Historique — ${history.length} / 10`} open={histPanelOpen}
-            onToggle={() => setHistPanelOpen((v) => !v)} accent={accent} border={border} surface={surface}>
-            <div style={{ padding: 16 }}>
+          {/* ══ HISTORY PANEL ══ */}
+          {histOpen && (
+            <div style={{
+              background: surface, border: `1px solid ${border}`,
+              borderTop: "none", padding: 16, marginBottom: 0,
+            }}>
               {history.length === 0 && <div style={{ fontSize: 11, color: muted }}>Aucune ligne cliquée.</div>}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {history.map((entry, i) => {
@@ -486,7 +555,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                       )}
                       <span style={{ color: muted, flexShrink: 0 }}>#{entry.rowIndex + 1}</span>
                       {entry.row.slice(0, 5).map((v, ci) => (
-                        <span key={ci} style={{ maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span key={ci} style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {cellStr(v)}
                         </span>
                       ))}
@@ -496,7 +565,10 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                 })}
               </div>
             </div>
-          </Panel>
+          )}
+
+          {/* spacer between panels and table */}
+          <div style={{ height: 12 }} />
 
           {/* ══ TABLE ══ */}
           <div style={{ overflowX: "auto", borderRadius: 6, border: `1px solid ${border}` }}
@@ -523,13 +595,11 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                             </button>
                           ) : (
                             <>
-                              {/* Sort */}
                               <button onClick={() => cycleSortCol(ci)} title="Trier"
                                 style={{ background: "transparent", border: "none", cursor: "pointer",
                                   padding: "0 2px", display: "flex", alignItems: "center" }}>
                                 {sortIcon(ci)}
                               </button>
-                              {/* Format */}
                               <button
                                 onClick={(e) => { e.stopPropagation(); closeAllFmt(ci); }}
                                 title="Format visuel"
@@ -597,17 +667,33 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                         const fmt = fmtPattern[ci] ? applyFormat(raw, fmtPattern[ci]) : raw;
                         return (
                           <td key={ci} style={{ padding: "5px 10px", borderBottom: `1px solid ${border}`,
-                            color: text, fontSize: 11, whiteSpace: "pre" }}>
+                            whiteSpace: "nowrap", color: text }}>
                             {fmt}
                           </td>
                         );
                       })}
-                      <td style={{ padding: "5px 10px", borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" }}>
-                        {dest && (
-                          <span style={{ background: dest.color, color: "#fff",
-                            padding: "2px 9px", borderRadius: 3, fontSize: 10, letterSpacing: "0.08em" }}>
+                      {/* DEST cell */}
+                      <td style={{ padding: "4px 10px", borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" }}>
+                        {dest ? (
+                          <span
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              background: dest.color, color: "#fff",
+                              padding: "2px 8px", borderRadius: 3,
+                              fontSize: 9, letterSpacing: "0.08em", fontWeight: 600,
+                            }}
+                          >
                             {dest.name}
+                            <span
+                              title="Désassigner"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRowDestMap((p) => { const n = { ...p }; delete n[rowIndex]; return n; });
+                              }}
+                              style={{ opacity: 0.55, cursor: "pointer", fontSize: 10 }}>✕</span>
                           </span>
+                        ) : (
+                          <span style={{ color: muted, fontSize: 10 }}>—</span>
                         )}
                       </td>
                     </tr>
@@ -616,7 +702,6 @@ export default function Pointage({ dark, initialData }: PointageProps) {
               </tbody>
             </table>
           </div>
-
         </div>
       )}
     </div>
