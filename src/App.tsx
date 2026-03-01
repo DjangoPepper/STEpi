@@ -7,7 +7,7 @@ import Hangar from "./hangar";
 import type { PointageData } from "./types";
 import { useWindowWidth } from "./useWindowWidth";
 
-type TabId = "excel-cleaner" | "pointage" | "scan" | "tally" | "hangar";
+type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "excel-cleaner", label: "Excel Cleaner" },
