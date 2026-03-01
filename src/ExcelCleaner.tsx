@@ -469,6 +469,24 @@ export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSend
       transition: all 0.15s;
     }
     .export-btn:hover { background: ${dark ? "#1a3a24" : "#a7f3d0"}; }
+
+    @media (max-width: 639px) {
+      .btn {
+        font-size: 15px !important; padding: 13px 18px !important;
+        letter-spacing: 0 !important; text-transform: none !important;
+        min-height: 46px;
+      }
+      .sheet-tab { font-size: 14px !important; padding: 12px 16px !important; letter-spacing: 0 !important; }
+      .export-name-input { font-size: 15px !important; padding: 13px 10px !important; min-height: 46px; width: 140px !important; }
+      .export-name-ext { font-size: 15px !important; padding: 13px 4px 13px 0 !important; }
+      .export-btn { font-size: 15px !important; padding: 13px 16px !important; letter-spacing: 0 !important; text-transform: none !important; min-height: 46px; }
+      .dim-chip { font-size: 13px !important; padding: 11px 14px !important; letter-spacing: 0 !important; text-transform: none !important; min-height: 46px; }
+      .theme-toggle { font-size: 13px !important; padding: 11px 14px !important; letter-spacing: 0 !important; text-transform: none !important; }
+      .info-bar { font-size: 14px !important; padding: 12px 16px !important; }
+      table { font-size: 14px !important; }
+      thead tr th { font-size: 12px !important; padding: 12px 14px !important; }
+      td { padding: 11px 14px !important; }
+    }
   `;
 
   return (
@@ -492,7 +510,7 @@ export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSend
         {/* Top bar */}
         <div style={{ marginBottom: isMobile ? 16 : 32, borderBottom: `1px solid ${t.border}`, paddingBottom: isMobile ? 12 : 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div style={{ fontSize: 10, letterSpacing: "0.2em", color: t.textDim, textTransform: "uppercase", marginBottom: 8 }}>Outil de nettoyage</div>
+            <div style={{ fontSize: isMobile ? 13 : 10, letterSpacing: isMobile ? 0 : "0.2em", color: t.textDim, textTransform: isMobile ? "none" : "uppercase", marginBottom: 8 }}>Outil de nettoyage</div>
             <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", color: t.text, fontFamily: "Space Grotesk, sans-serif" }}>
               Excel <span style={{ color: t.accent }}>Cleaner</span>
             </h1>
@@ -500,7 +518,7 @@ export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSend
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {parsed && (
               <>
-                <span style={{ fontSize: 11, color: t.textMuted, marginRight: 4 }}>
+                <span style={{ fontSize: isMobile ? 14 : 11, color: t.textMuted, marginRight: 4 }}>
                   <span style={{ color: t.accent, fontWeight: 600 }}>{visibleColCount}</span> col ·{" "}
                   <span style={{ color: t.accent, fontWeight: 600 }}>{visibleRowCount}</span> lignes
                   {sheetNames.length > 1 && (

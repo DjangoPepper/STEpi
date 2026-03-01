@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type CSSProperties } from "react";
 import * as XLSX from "xlsx";
 import type { PointageData } from "./types";
 import type { CellValue } from "./types";
+import { useWindowWidth } from "./useWindowWidth";
 
 /* ─── Types ─────────────────────────────────────────────── */
 type SortDir = "none" | "asc" | "desc";
@@ -91,6 +92,9 @@ export default function Pointage({ dark, initialData }: PointageProps) {
   const border  = dark ? "#222"    : "#ddd";
   const hdrBg   = dark ? "#0b0b0b" : "#f0f0f0";
   const rowAlt  = dark ? "#111"    : "#f9f9f9";
+
+  const vw       = useWindowWidth();
+  const isMobile = vw < 640;
 
   /* File state */
   const [headers, setHeaders] = useState<string[]>(() => LS.get<string[]>("ptg_headers", []));
@@ -258,15 +262,15 @@ export default function Pointage({ dark, initialData }: PointageProps) {
 
   /* ─── Style helpers ─────────────────────────────────────── */
   const inpStyle = (extra?: CSSProperties): CSSProperties => ({
-    fontFamily: MONO, fontSize: 11, padding: "6px 10px",
+    fontFamily: MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "11px 12px" : "6px 10px",
     background: dark ? "#0d0d0d" : "#f8f8f8",
     border: `1px solid ${border}`, borderRadius: 3,
     color: text, outline: "none", ...extra,
   });
   const btnStyle = (extra?: CSSProperties): CSSProperties => ({
-    fontFamily: MONO, fontSize: 10, letterSpacing: "0.1em",
-    textTransform: "uppercase", cursor: "pointer", border: "none",
-    borderRadius: 3, padding: "6px 14px", ...extra,
+    fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.1em",
+    textTransform: isMobile ? "none" : "uppercase" as const, cursor: "pointer", border: "none",
+    borderRadius: 3, padding: isMobile ? "12px 18px" : "6px 14px", ...extra,
   });
 
   /* ════════════════════ RENDER ══════════════════════════════ */
@@ -276,7 +280,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
 
       {/* ── Upload zone ─────────────────────────────────────── */}
       {rows.length === 0 && (
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: isMobile ? "24px 14px" : "40px 24px" }}>
           <div
             onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
             onDragOver={(e) => e.preventDefault()}
@@ -296,10 +300,10 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             }}
           >
             <div style={{ fontSize: 32, marginBottom: 16, opacity: 0.2, color: text }}>⊞</div>
-            <div style={{ fontSize: 13, color: muted, marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 15 : 13, color: muted, marginBottom: 8 }}>
               Glissez un fichier Excel ou cliquez pour sélectionner
             </div>
-            <div style={{ fontSize: 10, color: dark ? "#3a3a3a" : "#ccc", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            <div style={{ fontSize: isMobile ? 13 : 10, color: dark ? "#3a3a3a" : "#ccc", letterSpacing: isMobile ? 0 : "0.1em", textTransform: isMobile ? "none" : "uppercase" }}>
               .xlsx · .xls · .csv
             </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }}
@@ -309,11 +313,11 @@ export default function Pointage({ dark, initialData }: PointageProps) {
       )}
 
       {rows.length > 0 && (
-        <div style={{ padding: "20px 24px" }}>
+        <div style={{ padding: isMobile ? "14px 12px" : "20px 24px" }}>
 
           {/* File bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 11, color: muted }}>
+            <span style={{ fontSize: isMobile ? 14 : 11, color: muted }}>
               {fileName}&nbsp;—&nbsp;{rows.length} lignes&nbsp;·&nbsp;{headers.length} colonnes
             </span>
             <button
@@ -340,8 +344,8 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             <button
               onClick={() => setSearchOpen(v => !v)}
               style={{
-                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
-                textTransform: "uppercase", padding: "5px 14px",
+                fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.12em",
+                textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "12px 16px" : "5px 14px",
                 background: searchOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
                 border: `1px solid ${searchOpen ? accent : border}`,
                 borderRadius: 3, color: searchOpen ? accent : muted,
@@ -362,8 +366,8 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             <button
               onClick={() => setDestOpen(v => !v)}
               style={{
-                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
-                textTransform: "uppercase", padding: "5px 14px",
+                fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.12em",
+                textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "12px 16px" : "5px 14px",
                 background: destOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
                 border: `1px solid ${destOpen ? accent : border}`,
                 borderRadius: 3, color: destOpen ? accent : muted,
@@ -393,8 +397,8 @@ export default function Pointage({ dark, initialData }: PointageProps) {
             <button
               onClick={() => setHistOpen(v => !v)}
               style={{
-                fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
-                textTransform: "uppercase", padding: "5px 14px",
+                fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.12em",
+                textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "12px 16px" : "5px 14px",
                 background: histOpen ? (dark ? "#0f2a20" : "#e8f5ee") : "transparent",
                 border: `1px solid ${histOpen ? accent : border}`,
                 borderRadius: 3, color: histOpen ? accent : muted,

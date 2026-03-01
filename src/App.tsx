@@ -7,7 +7,7 @@ import Hangar from "./hangar";
 import type { PointageData } from "./types";
 import { useWindowWidth } from "./useWindowWidth";
 
-type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
+type TabId = "excel-cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "excel-cleaner", label: "Excel Cleaner" },
@@ -56,8 +56,9 @@ export default function App() {
                 key={tab.id}
                 onClick={() => setActive(tab.id)}
                 style={{
-                  fontFamily: MONO, fontSize: isMobile ? 10 : 11, letterSpacing: "0.1em",
-                  textTransform: "uppercase", padding: isMobile ? "10px 10px 8px" : "12px 22px 10px",
+                  fontFamily: isMobile ? "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" : MONO,
+                  fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.1em",
+                  textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "16px 14px 14px" : "12px 22px 10px",
                   border: "none", whiteSpace: "nowrap", flexShrink: 0,
                   borderBottom: isActive ? `2px solid ${ACCENT}` : "2px solid transparent",
                   background: "transparent", color: isActive ? ACCENT : MUTED,
@@ -77,8 +78,9 @@ export default function App() {
         <button
           onClick={() => setDark((d) => !d)}
           style={{
-            fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em",
-            textTransform: "uppercase", padding: isMobile ? "6px 8px" : "6px 14px",
+            fontFamily: isMobile ? "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" : MONO,
+            fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.12em",
+            textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "12px 16px" : "8px 14px",
             background: "transparent", border: `1px solid ${BORDER}`,
             borderRadius: 3, color: MUTED, cursor: "pointer", marginLeft: 4, flexShrink: 0,
             transition: "color 0.15s, border-color 0.15s",

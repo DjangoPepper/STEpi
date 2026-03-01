@@ -316,13 +316,13 @@ export default function Hangar({ dark }: HangarProps) {
 
   /* ── Styles ──────────────────────────────────────────────────── */
   const pad     = isMobile ? "12px 10px" : isTablet ? "16px 18px" : "20px 28px";
-  const btnBase: React.CSSProperties = { fontFamily: MONO, fontSize: isMobile ? 12 : 11, letterSpacing: "0.08em",
-    padding: isMobile ? "7px 14px" : "4px 10px", borderRadius: 4, cursor: "pointer", border: "none" };
-  const thS: React.CSSProperties = { padding: isMobile ? "6px 10px" : "5px 12px", textAlign: "left", fontSize: isMobile ? 11 : 10,
-    color: muted, textTransform: "uppercase" as const, letterSpacing: "0.1em", fontWeight: 400,
+  const btnBase: React.CSSProperties = { fontFamily: MONO, fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.08em",
+    padding: isMobile ? "12px 16px" : "4px 10px", borderRadius: 4, cursor: "pointer", border: "none" };
+  const thS: React.CSSProperties = { padding: isMobile ? "10px 12px" : "5px 12px", textAlign: "left", fontSize: isMobile ? 13 : 10,
+    color: muted, textTransform: isMobile ? "none" : "uppercase" as const, letterSpacing: isMobile ? 0 : "0.1em", fontWeight: 400,
     borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" };
   const tdS = (right?: boolean): React.CSSProperties => ({
-    padding: isMobile ? "7px 10px" : "5px 12px", fontSize: isMobile ? 12 : 11, color: text, textAlign: right ? "right" : "left",
+    padding: isMobile ? "10px 12px" : "5px 12px", fontSize: isMobile ? 14 : 11, color: text, textAlign: right ? "right" : "left",
     borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" });
 
   return (
@@ -330,7 +330,7 @@ export default function Hangar({ dark }: HangarProps) {
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-        <h2 style={{ fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, margin: 0 }}>
+        <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0 }}>
           🏭 Hangar
         </h2>
         <button onClick={reloadXl}
@@ -340,17 +340,17 @@ export default function Hangar({ dark }: HangarProps) {
         {xlHeaders.length > 0 && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, color: muted }}>Réf. :</span>
+              <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Réf. :</span>
               <select value={codeColIdx} onChange={(e) => setCodeColIdx(Number(e.target.value))}
-                style={{ fontFamily: MONO, fontSize: 10, padding: "3px 6px", borderRadius: 3,
+                style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
                   background: surface, border: `1px solid ${border}`, color: text }}>
                 {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
               </select>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, color: muted }}>Poids :</span>
+              <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Poids :</span>
               <select value={wtColIdx} onChange={(e) => setWtColIdx(Number(e.target.value))}
-                style={{ fontFamily: MONO, fontSize: 10, padding: "3px 6px", borderRadius: 3,
+                style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
                   background: surface, border: `1px solid ${border}`, color: text }}>
                 {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
               </select>
@@ -358,7 +358,7 @@ export default function Hangar({ dark }: HangarProps) {
           </>
         )}
         {xlHeaders.length === 0 && (
-          <span style={{ fontSize: 10, color: amber }}>⚠ Aucun fichier chargé dans Pointage</span>
+          <span style={{ fontSize: isMobile ? 13 : 10, color: amber }}>⚠ Aucun fichier chargé dans Pointage</span>
         )}
         <button onClick={exportXLSX}
           style={{ ...btnBase, marginLeft: "auto", background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>
@@ -371,20 +371,20 @@ export default function Hangar({ dark }: HangarProps) {
 
         {/* ── Lines panel ─────────────────────────────────────── */}
         <div style={{ width: isDesktop ? 260 : "100%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+          <div style={{ fontSize: isMobile ? 13 : 10, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em" }}>
             Lignes ({lines.length})
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <input value={newLineName} onChange={(e) => setNewLineName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && createLine()}
               placeholder="Nom de la ligne…"
-              style={{ flex: 1, fontFamily: MONO, fontSize: 11, padding: "5px 8px", borderRadius: 4,
+              style={{ flex: 1, fontFamily: MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 10px" : "5px 8px", borderRadius: 4,
                 background: surface, border: `1px solid ${border}`, color: text, outline: "none" }} />
             <button onClick={createLine}
               style={{ ...btnBase, background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>+</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: isDesktop ? 520 : 200, overflowY: "auto" }}>
-            {lines.length === 0 && <div style={{ fontSize: 11, color: muted }}>Aucune ligne créée</div>}
+            {lines.length === 0 && <div style={{ fontSize: isMobile ? 14 : 11, color: muted }}>Aucune ligne créée</div>}
             {lines.map((l) => {
               const isActive = l.id === selectedId;
               const sum = lineSummary.find((s) => s.id === l.id);
@@ -398,10 +398,10 @@ export default function Hangar({ dark }: HangarProps) {
                       onChange={(e) => setEditingName(e.target.value)}
                       onKeyDown={(e) => { if (e.key==="Enter") commitRename(); if (e.key==="Escape") setEditingId(null); }}
                       onBlur={commitRename} onClick={(e) => e.stopPropagation()}
-                      style={{ flex:1, fontFamily:MONO, fontSize:11, padding:"2px 4px",
+                      style={{ flex:1, fontFamily:MONO, fontSize: isMobile ? 14 : 11, padding: isMobile ? "6px 6px" : "2px 4px",
                         background:"transparent", border:`1px solid ${accent}`, color:text, borderRadius:3, outline:"none" }} />
                   ) : (
-                    <span style={{ flex:1, fontSize:11, fontWeight:isActive?700:400,
+                    <span style={{ flex:1, fontSize: isMobile ? 14 : 11, fontWeight:isActive?700:400,
                       color:isActive?accent:text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                       {l.name}
                     </span>
@@ -420,7 +420,7 @@ export default function Hangar({ dark }: HangarProps) {
         {/* ── Camera column ───────────────────────────────────── */}
         <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch",
           width: isDesktop ? 420 : "100%", flexShrink: 0 }}>
-          <div style={{ padding:"5px 14px", borderRadius:4, fontSize:11, fontWeight:700,
+          <div style={{ padding:"5px 14px", borderRadius:4, fontSize: isMobile ? 15 : 11, fontWeight:700,
             background: selectedLine ? accent+"18" : (dark?"#1a1a1a":"#f0f0f0"),
             border:`1px solid ${selectedLine ? accent : border}`,
             color: selectedLine ? accent : muted }}>
@@ -455,14 +455,14 @@ export default function Hangar({ dark }: HangarProps) {
 
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <button onClick={cameraOn ? stopCamera : startCamera}
-              style={{ ...btnBase, fontSize:12, padding:"8px 16px",
+              style={{ ...btnBase, fontSize: isMobile ? 15 : 12, padding: isMobile ? "12px 20px" : "8px 16px",
                 background: cameraOn?(dark?"#2d0a0a":"#fee2e2"):(dark?"#0a200f":"#dcfce7"),
                 border:`1px solid ${cameraOn?"#ef4444":accent}`,
                 color: cameraOn?"#ef4444":accent, fontWeight:700 }}>
               {cameraOn ? "⏹ Arrêter" : "▶ Caméra"}
             </button>
             {cameraOn && (
-              <div style={{ fontSize:10, padding:"3px 8px", borderRadius:4,
+              <div style={{ fontSize: isMobile ? 13 : 10, padding:"3px 8px", borderRadius:4,
                 background: useNative?accent+"18":(dark?"#0a0f20":"#e0e7ff"),
                 border:`1px solid ${useNative?accent:(dark?"#818cf8":"#4f46e5")}`,
                 color: useNative?accent:(dark?"#818cf8":"#4f46e5") }}>
@@ -472,17 +472,17 @@ export default function Hangar({ dark }: HangarProps) {
           </div>
 
           {cameraError && (
-            <div style={{ fontSize:11, color:"#ef4444", padding:"7px 12px",
+            <div style={{ fontSize: isMobile ? 14 : 11, color:"#ef4444", padding:"7px 12px",
               background:dark?"#2d0a0a":"#fee2e2", borderRadius:4, border:"1px solid #ef4444" }}>⚠ {cameraError}</div>
           )}
 
           {/* Scan delay slider */}
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:10, color:muted, whiteSpace:"nowrap" }}>Délai :</span>
+            <span style={{ fontSize: isMobile ? 13 : 10, color:muted, whiteSpace:"nowrap" }}>Délai :</span>
             <input type="range" min={300} max={5000} step={100} value={scanDelay}
               onChange={(e) => setScanDelay(Number(e.target.value))}
               style={{ flex:1, accentColor:accent }} />
-            <span style={{ fontSize:10, color:text, whiteSpace:"nowrap", minWidth:42, textAlign:"right" }}>{(scanDelay/1000).toFixed(1)} s</span>
+            <span style={{ fontSize: isMobile ? 13 : 10, color:text, whiteSpace:"nowrap", minWidth:42, textAlign:"right" }}>{(scanDelay/1000).toFixed(1)} s</span>
           </div>
 
           {/* Manual entry */}
@@ -490,7 +490,7 @@ export default function Hangar({ dark }: HangarProps) {
             <input value={manualCode} onChange={(e)=>setManualCode(e.target.value)}
               onKeyDown={(e)=>e.key==="Enter"&&submitManual()}
               placeholder="Saisie manuelle d'une réf…"
-              style={{ flex:1, fontFamily:MONO, fontSize:11, padding:"6px 10px", borderRadius:4,
+              style={{ flex:1, fontFamily:MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 12px" : "6px 10px", borderRadius:4,
                 background:surface, border:`1px solid ${border}`, color:text, outline:"none" }} />
             <button onClick={submitManual}
               style={{ ...btnBase, background:accent+"22", border:`1px solid ${accent}`, color:accent, fontWeight:700 }}>↵</button>
@@ -569,7 +569,7 @@ export default function Hangar({ dark }: HangarProps) {
       {/* ── Summary table ───────────────────────────────────────── */}
       {lines.length > 0 && (
         <div style={{ marginTop:24, maxWidth:"100%" }}>
-          <div style={{ fontSize:10, color:muted, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:10 }}>
+          <div style={{ fontSize: isMobile ? 13 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:10 }}>
             Récapitulatif
           </div>
           <table style={{ borderCollapse:"collapse", width:"100%", background:surface, borderRadius:6, overflow:"hidden" }}>
@@ -593,7 +593,7 @@ export default function Hangar({ dark }: HangarProps) {
             </tbody>
             <tfoot>
               <tr style={{ background:dark?"#0e2016":"#e8f5ee" }}>
-                <td style={{...tdS(), fontWeight:700, color:accent, fontSize:10, textTransform:"uppercase", letterSpacing:"0.1em"}}>Total</td>
+                <td style={{...tdS(), fontWeight:700, color:accent, fontSize: isMobile ? 13 : 10, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.1em"}}>Total</td>
                 <td style={{...tdS(true), fontWeight:700, color:accent}}>{totalQty}</td>
                 <td style={{...tdS(true), fontWeight:700, color:anyNull?amber:accent}}>
                   {fmtW(totalWeight)}{anyNull?" *":""}
@@ -601,7 +601,7 @@ export default function Hangar({ dark }: HangarProps) {
               </tr>
             </tfoot>
           </table>
-          {anyNull && <div style={{ fontSize:10, color:amber, marginTop:6 }}>* Poids inconnu pour certains articles (non saisi)</div>}
+          {anyNull && <div style={{ fontSize: isMobile ? 13 : 10, color:amber, marginTop:6 }}>* Poids inconnu pour certains articles (non saisi)</div>}
         </div>
       )}
 
@@ -612,24 +612,24 @@ export default function Hangar({ dark }: HangarProps) {
           onClick={(e) => { if (e.target === e.currentTarget) setPending(null); }}>
           <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:10,
             padding:"24px 20px", width:"min(360px, calc(100vw - 32px))", fontFamily:MONO, boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
-            <div style={{ fontSize:10, color:muted, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:12 }}>
+            <div style={{ fontSize: isMobile ? 14 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:12 }}>
               Réf. non trouvée dans Excel
             </div>
-            <div style={{ fontSize:13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:16 }}>
+            <div style={{ fontSize: isMobile ? 15 : 13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:16 }}>
               {pending.code}
             </div>
-            <div style={{ fontSize:11, color:muted, marginBottom:6 }}>Poids (kg) :</div>
+            <div style={{ fontSize: isMobile ? 14 : 11, color:muted, marginBottom:6 }}>Poids (kg) :</div>
             <input autoFocus value={pending.weight} inputMode="decimal"
               onChange={(e) => setPending({ ...pending, weight: e.target.value })}
               onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
               placeholder="ex: 12.5"
-              style={{ width:"100%", fontFamily:MONO, fontSize:13, padding:"8px 10px",
+              style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13, padding: isMobile ? "13px 12px" : "8px 10px",
                 borderRadius:5, background:bg, border:`1px solid ${accent}`, color:text, outline:"none",
                 boxSizing:"border-box", marginBottom:16 }} />
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={confirmPending}
-                style={{ ...btnBase, flex:1, padding:"9px", background:accent+"22",
-                  border:`1px solid ${accent}`, color:accent, fontWeight:700, fontSize:12 }}>
+                style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px", background:accent+"22",
+                  border:`1px solid ${accent}`, color:accent, fontWeight:700, fontSize: isMobile ? 15 : 12 }}>
                 ✓ Ajouter
               </button>
               <button onClick={() => setPending(null)}

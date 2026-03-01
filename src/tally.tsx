@@ -204,16 +204,16 @@ export default function Tally({ dark }: TallyProps) {
     setExtraRows(n); try{localStorage.setItem("tly_extrarows",JSON.stringify(n));}catch{};
   };
   const inpCumul = (extra?: React.CSSProperties): React.CSSProperties => ({
-    width: 90, textAlign: "right" as const, fontFamily: MONO, fontSize: 11,
+    width: isMobile ? "auto" : 90, minWidth: isMobile ? 80 : undefined, textAlign: "right" as const, fontFamily: MONO, fontSize: isMobile ? 14 : 11,
     background: dark ? "#0d0d0d" : "#fff", color: dark ? "#93c5fd" : "#1d4ed8",
     border: `1px solid ${dark?"#333":"#ccc"}`, borderRadius: 3,
-    padding: "3px 7px", outline: "none", ...extra,
+    padding: isMobile ? "9px 10px" : "3px 7px", outline: "none", ...extra,
   });
   const inpLabel = (): React.CSSProperties => ({
-    width: 130, fontFamily: MONO, fontSize: 11,
+    width: isMobile ? "auto" : 130, minWidth: isMobile ? 120 : undefined, fontFamily: MONO, fontSize: isMobile ? 14 : 11,
     background: dark ? "#0d0d0d" : "#fff", color: text,
     border: `1px solid ${dark?"#333":"#ccc"}`, borderRadius: 3,
-    padding: "3px 7px", outline: "none",
+    padding: isMobile ? "9px 10px" : "3px 7px", outline: "none",
   });
 
   /* Formatting */
@@ -231,13 +231,13 @@ export default function Tally({ dark }: TallyProps) {
   });
 
   const thStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
-    padding: "8px 14px",
+    padding: isMobile ? "11px 14px" : "8px 14px",
     background: hdrBg,
     borderBottom: `2px solid ${border}`,
-    fontSize: 10,
+    fontSize: isMobile ? 13 : 10,
     fontFamily: MONO,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase" as const,
+    letterSpacing: isMobile ? 0 : "0.12em",
+    textTransform: isMobile ? "none" : "uppercase" as const,
     color: accent,
     textAlign: "left" as const,
     whiteSpace: "nowrap",
@@ -248,17 +248,17 @@ export default function Tally({ dark }: TallyProps) {
     <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <span style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: accent, fontWeight: 600 }}>
+        <span style={{ fontSize: isMobile ? 17 : 11, letterSpacing: isMobile ? 0 : "0.2em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 600 }}>
           Tally
         </span>
         {!noData && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: muted }}>
+            <span style={{ fontSize: isMobile ? 14 : 10, color: muted }}>
               {rows.length} ligne{rows.length !== 1 ? "s" : ""} · {destinations.length} destination{destinations.length !== 1 ? "s" : ""}
             </span>
             {/* Column selector */}
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: muted, fontFamily: MONO }}>
-              <span style={{ letterSpacing: "0.08em", textTransform: "uppercase" }}>Col. poids</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 14 : 10, color: muted, fontFamily: MONO }}>
+              <span style={{ letterSpacing: isMobile ? 0 : "0.08em", textTransform: isMobile ? "none" : "uppercase" }}>Col. poids</span>
               <select
                 value={weightCol}
                 onChange={(e) => {
@@ -267,10 +267,10 @@ export default function Tally({ dark }: TallyProps) {
                   try { localStorage.setItem("tly_weightCol", JSON.stringify(v)); } catch { /* ignore */ }
                 }}
                 style={{
-                  fontFamily: MONO, fontSize: 10, background: surface,
+                  fontFamily: MONO, fontSize: isMobile ? 14 : 10, background: surface,
                   color: weightCol >= 0 ? accent : muted,
                   border: `1px solid ${border}`, borderRadius: 3,
-                  padding: "3px 7px", cursor: "pointer",
+                  padding: isMobile ? "9px 10px" : "3px 7px", cursor: "pointer",
                   outline: "none",
                 }}
               >
@@ -290,7 +290,7 @@ export default function Tally({ dark }: TallyProps) {
         </div>
       ) : (
         <div style={{ overflowX: "auto", borderRadius: 6, border: `1px solid ${border}`, background: surface }}>
-          <div style={{ padding: "8px 14px", borderBottom: `1px solid ${border}`, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, fontWeight: 700, fontFamily: MONO }}>
+          <div style={{ padding: isMobile ? "12px 16px" : "8px 14px", borderBottom: `1px solid ${border}`, fontSize: isMobile ? 15 : 10, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 700, fontFamily: MONO }}>
             Today
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -330,7 +330,7 @@ export default function Tally({ dark }: TallyProps) {
               {/* Sous-total assigné */}
               {assignedRows.length > 0 && (
                 <tr style={{ background: dark ? "#0a1a12" : "#f0faf4", borderTop: `2px solid ${border}` }}>
-                  <td style={cellStyle({ color: accent, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontStyle: "italic" })}>
+                  <td style={cellStyle({ color: accent, fontSize: isMobile ? 12 : 10, letterSpacing: isMobile ? 0 : "0.12em", textTransform: isMobile ? "none" : "uppercase", fontStyle: "italic" })}>
                     Sous-total assigné
                   </td>
                   <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>
@@ -355,7 +355,7 @@ export default function Tally({ dark }: TallyProps) {
               )}
               {/* Total */}
               <tr style={{ background: dark ? "#0e2016" : "#e8f5ee" }}>
-                <td style={cellStyle({ color: accent, letterSpacing: "0.15em", fontWeight: 700, textTransform: "uppercase", fontSize: 10 })}>
+                <td style={cellStyle({ color: accent, letterSpacing: isMobile ? 0 : "0.15em", fontWeight: 700, textTransform: isMobile ? "none" : "uppercase", fontSize: isMobile ? 13 : 10 })}>
                   Total
                 </td>
                 <td style={cellStyle({ textAlign: "right", fontWeight: 700, color: accent })}>{totalCount.toLocaleString("fr-FR")}</td>
@@ -371,7 +371,7 @@ export default function Tally({ dark }: TallyProps) {
       {/* ══ CUMUL TABLE ══ */}
       {!noData && assignedRows.length > 0 && (
         <div style={{ marginTop: 20, overflowX: "auto", borderRadius: 6, border: `1px solid ${border}`, background: surface }}>
-          <div onClick={() => setCumulOpen(v => !v)} style={{ padding: "8px 14px", borderBottom: cumulOpen ? `1px solid ${border}` : "none", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
+          <div onClick={() => setCumulOpen(v => !v)} style={{ padding: isMobile ? "12px 16px" : "8px 14px", borderBottom: cumulOpen ? `1px solid ${border}` : "none", fontSize: isMobile ? 15 : 10, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
             <span>Cumul</span><span style={{ fontSize: 12 }}>{cumulOpen ? "▲" : "▼"}</span>
           </div>
           {cumulOpen && (
@@ -479,7 +479,7 @@ export default function Tally({ dark }: TallyProps) {
       {/* ══ CHARGEMENT TABLE ══ */}
       {!noData && assignedRows.length > 0 && (
         <div style={{ marginTop: 20, overflowX: "auto", borderRadius: 6, border: `1px solid ${border}`, background: surface }}>
-          <div onClick={() => setChargOpen(v => !v)} style={{ padding: "8px 14px", borderBottom: chargOpen ? `1px solid ${border}` : "none", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
+          <div onClick={() => setChargOpen(v => !v)} style={{ padding: isMobile ? "12px 16px" : "8px 14px", borderBottom: chargOpen ? `1px solid ${border}` : "none", fontSize: isMobile ? 15 : 10, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
             <span>Chargement</span><span style={{ fontSize: 12 }}>{chargOpen ? "▲" : "▼"}</span>
           </div>
           {chargOpen && <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -562,7 +562,7 @@ export default function Tally({ dark }: TallyProps) {
               {/* Sous-total non assigné */}
               {unassigned.count > 0 && (
                 <tr style={{ background: dark ? "#111" : "#fdf8f0" }}>
-                  <td style={cellStyle({ color: muted, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontStyle: "italic" })}>Sous-total non assigné</td>
+                  <td style={cellStyle({ color: muted, fontSize: isMobile ? 12 : 10, letterSpacing: isMobile ? 0 : "0.12em", textTransform: isMobile ? "none" : "uppercase", fontStyle: "italic" })}>Sous-total non assigné</td>
                   <td style={cellStyle({ textAlign: "right", color: muted })}>{unassigned.count.toLocaleString("fr-FR")}</td>
                   {hasWeight && <td style={cellStyle({ textAlign: "right", color: muted })}>{fmtWeight(unassigned.weight)}</td>}
                   <td style={cellStyle({ textAlign: "right", color: muted })}>—</td>
@@ -593,7 +593,7 @@ export default function Tally({ dark }: TallyProps) {
       {/* ══ DÉCHARGEMENT TABLE ══ */}
       {!noData && assignedRows.length > 0 && (
         <div style={{ marginTop: 20, overflowX: "auto", borderRadius: 6, border: `1px solid ${border}`, background: surface }}>
-          <div onClick={() => setDechargeOpen(v => !v)} style={{ padding: "8px 14px", borderBottom: dechargeOpen ? `1px solid ${border}` : "none", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
+          <div onClick={() => setDechargeOpen(v => !v)} style={{ padding: isMobile ? "12px 16px" : "8px 14px", borderBottom: dechargeOpen ? `1px solid ${border}` : "none", fontSize: isMobile ? 15 : 10, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 700, fontFamily: MONO, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", userSelect: "none" }}>
             <span>Déchargement</span><span style={{ fontSize: 12 }}>{dechargeOpen ? "▲" : "▼"}</span>
           </div>
           {dechargeOpen && <table style={{ width: "100%", borderCollapse: "collapse" }}>

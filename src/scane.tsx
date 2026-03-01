@@ -227,11 +227,11 @@ export default function Scane({ dark }: ScaneProps) {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, margin: 0 }}>
+        <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0 }}>
           ⬛ Scan Code-barres / QR
         </h2>
         <button onClick={reloadData}
-          style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.1em", padding: "4px 10px",
+          style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "10px 14px" : "4px 10px",
             background: "transparent", border: `1px solid ${border}`, borderRadius: 3, color: muted, cursor: "pointer" }}>
           ↺ Actualiser données
         </button>
@@ -242,24 +242,24 @@ export default function Scane({ dark }: ScaneProps) {
         <div style={{ marginBottom: 10, display: "inline-block", padding: "3px 10px",
           background: useNative ? (dark?"#0a200f":"#dcfce7") : (dark?"#0a0f20":"#e0e7ff"),
           border: `1px solid ${useNative ? accent : (dark?"#818cf8":"#4f46e5")}`,
-          borderRadius: 4, fontSize: 10, color: useNative ? accent : (dark?"#818cf8":"#4f46e5") }}>
+          borderRadius: 4, fontSize: isMobile ? 13 : 10, color: useNative ? accent : (dark?"#818cf8":"#4f46e5") }}>
           {useNative ? "⚡ BarcodeDetector (natif)" : "⚙ ZXing (compatible tous navigateurs)"}
         </div>
       )}
 
       {/* Status chips */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
-        <div style={{ padding: "5px 14px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11, fontWeight: 700,
           background: selectedDest ? selectedDest.color + "22" : (dark?"#1a1a1a":"#f0f0f0"),
           border: `1px solid ${selectedDest ? selectedDest.color : border}`,
           color: selectedDest ? selectedDest.color : muted }}>
           {selectedDest ? `▶ ${selectedDest.name}` : "— Aucune destination —"}
         </div>
-        <div style={{ padding: "5px 14px", borderRadius: 4, fontSize: 11,
+        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11,
           background: dark?"#1a1a1a":"#f0f0f0", border: `1px solid ${border}`, color: accent }}>
           {scanCount} affectation{scanCount !== 1 ? "s" : ""}
         </div>
-        <div style={{ padding: "5px 14px", borderRadius: 4, fontSize: 11,
+        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11,
           background: dark?"#1a1a1a":"#f0f0f0", border: `1px solid ${border}`, color: muted }}>
           {rows.length} ligne{rows.length !== 1 ? "s" : ""} Excel
         </div>
@@ -267,15 +267,15 @@ export default function Scane({ dark }: ScaneProps) {
 
       {/* Column selector */}
       <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Colonne :</span>
+        <span style={{ fontSize: isMobile ? 14 : 11, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.1em" }}>Colonne :</span>
         <select value={searchColIdx} onChange={(e) => setSearchColIdx(Number(e.target.value))}
-          style={{ fontFamily: MONO, fontSize: 11, padding: "4px 8px", borderRadius: 4,
+          style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 10px" : "4px 8px", borderRadius: 4,
             background: surface, border: `1px solid ${border}`, color: text, cursor: "pointer" }}>
           <option value={-1}>Toutes les colonnes</option>
           {headers.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
         </select>
         {rows.length === 0 && (
-          <span style={{ fontSize: 11, color: muted }}>— aucun fichier chargé dans Pointage</span>
+          <span style={{ fontSize: isMobile ? 14 : 11, color: muted }}>— aucun fichier chargé dans Pointage</span>
         )}
       </div>
 
@@ -322,7 +322,7 @@ export default function Scane({ dark }: ScaneProps) {
         {/* Right panel */}
         <div style={{ flex: 1, minWidth: isMobile ? "unset" : 240, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 12 }}>
           <button onClick={cameraOn ? stopCamera : startCamera}
-            style={{ fontFamily: MONO, fontSize: 12, letterSpacing: "0.1em", padding: "10px 18px",
+            style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 12, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "14px 22px" : "10px 18px",
               background: cameraOn ? (dark?"#2d0a0a":"#fee2e2") : (dark?"#0a200f":"#dcfce7"),
               border: `1px solid ${cameraOn ? "#ef4444" : accent}`,
               borderRadius: 5, color: cameraOn ? "#ef4444" : accent,
@@ -342,30 +342,30 @@ export default function Scane({ dark }: ScaneProps) {
             <div style={{ padding: "12px 14px", borderRadius: 6,
               background: lastScan.matched ? (dark?"#0a1f0f":"#f0fdf4") : (dark?"#1c1000":"#fffbeb"),
               border: `1px solid ${lastScan.matched ? accent : "#d97706"}` }}>
-              <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 5 }}>
+              <div style={{ fontSize: isMobile ? 13 : 10, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.1em", marginBottom: 5 }}>
                 Dernier scan
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: text, wordBreak: "break-all", marginBottom: 6 }}>
+              <div style={{ fontSize: isMobile ? 15 : 12, fontWeight: 700, color: text, wordBreak: "break-all", marginBottom: 6 }}>
                 {lastScan.rawValue}
               </div>
               {lastScan.matched ? (
                 <>
-                  <div style={{ fontSize: 11, color: accent }}>
+                  <div style={{ fontSize: isMobile ? 14 : 11, color: accent }}>
                     ✓ {lastScan.rowIndices.length} correspondance{lastScan.rowIndices.length > 1 ? "s" : ""}
                     {" · "}{lastScan.colHeader}
                   </div>
-                  <div style={{ fontSize: 11, color: muted }}>
+                  <div style={{ fontSize: isMobile ? 14 : 11, color: muted }}>
                     Ligne{lastScan.rowIndices.length > 1 ? "s" : ""} : {lastScan.rowIndices.map((i)=>i+1).join(", ")}
                   </div>
                   <div style={{ marginTop: 8, display: "inline-block", padding: "2px 10px", borderRadius: 12,
                     background: (selectedDest?.color ?? accent) + "33",
                     border: `1px solid ${selectedDest?.color ?? accent}`,
-                    color: selectedDest?.color ?? accent, fontSize: 11, fontWeight: 700 }}>
+                    color: selectedDest?.color ?? accent, fontSize: isMobile ? 14 : 11, fontWeight: 700 }}>
                     → {lastScan.destName}
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize: 11, color: "#d97706" }}>
+                <div style={{ fontSize: isMobile ? 14 : 11, color: "#d97706" }}>
                   {lastScan.colHeader === "Aucune destination sélectionnée"
                     ? "⚠ Sélectionner une destination dans l'onglet Pointage"
                     : `✗ Aucune correspondance · ${lastScan.colHeader}`}
@@ -375,7 +375,7 @@ export default function Scane({ dark }: ScaneProps) {
           )}
 
           {/* How-to */}
-          <div style={{ fontSize: 10, color: muted, lineHeight: 1.8, borderTop: `1px solid ${border}`, paddingTop: 10 }}>
+          <div style={{ fontSize: isMobile ? 13 : 10, color: muted, lineHeight: 1.8, borderTop: `1px solid ${border}`, paddingTop: 10 }}>
             <div>1. Sélectionner une destination dans <strong style={{color:text}}>Pointage</strong></div>
             <div>2. Cliquer <strong style={{color:text}}>Démarrer la caméra</strong></div>
             <div>3. Pointer vers un code-barres ou QR code</div>
@@ -387,7 +387,7 @@ export default function Scane({ dark }: ScaneProps) {
       {/* Affectations actives */}
       {Object.keys(rowDestMap).length > 0 && (
         <div style={{ marginTop: 28 }}>
-          <div style={{ fontSize: 10, color: muted, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>
+          <div style={{ fontSize: isMobile ? 13 : 10, color: muted, letterSpacing: isMobile ? 0 : "0.12em", textTransform: isMobile ? "none" : "uppercase", marginBottom: 8 }}>
             Affectations actives ({Object.keys(rowDestMap).length})
           </div>
           <div style={{ maxHeight: 140, overflowY: "auto", display: "flex", flexWrap: "wrap", gap: 6 }}>
