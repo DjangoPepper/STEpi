@@ -24,6 +24,21 @@ const LS = {
 interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; position?: string; }
 interface HangarLine  { id: string; name: string; items: HangarItem[]; }
 interface HangarProps { dark: boolean; }
+interface ForceWarning {
+  code: string;
+  weight: number;
+  position: string;
+  offenders: { pos: string; weight: number; pct: number }[];
+}
+interface PosConflict {
+  code: string;
+  weight: number | null;
+  fromExcel: boolean;
+  position: string;
+  originalPosition: string;
+  conflictLine: string;
+  conflictCode: string;
+}
 
 const MONO  = "'IBM Plex Mono', 'Fira Mono', monospace";
 const newId = () => `hl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
@@ -74,6 +89,10 @@ export default function Hangar({ dark }: HangarProps) {
   const pendingRef = useRef<boolean>(false);
   useEffect(() => { pendingRef.current = pending !== null; }, [pending]);
 
+  /* ── Force-position warning ──────────────────────────────────── */
+  const [forceWarning, setForceWarning] = useState<ForceWarning | null>(null);
+  const [posConflict,  setPosConflict]  = useState<PosConflict  | null>(null);
+
   /* ── Scan delay ───────────────────────────────────────────────── */
   const [scanDelay, setScanDelay] = useState<number>(() => LS.get("hgr_scanDelay", 1800));
   const scanDelayRef = useRef<number>(scanDelay);
@@ -86,10 +105,24 @@ export default function Hangar({ dark }: HangarProps) {
   /* mode colour: orange (QAA) | red-pink (F12) */
   const accent = f12Mode ? (dark ? "#fca5a5" : "#ef4444") : "#f97316";
 
-  /* ── QAA position ────────────────────────────────────────────── */
-  const [qaaPosition, setQaaPosition] = useState<string>(() => LS.get("hgr_qaapos", ""));
+  /* ── QAA position — per line ─────────────────────────────── */
+  const [linePositions, setLinePositions] = useState<Record<string,string>>(
+    () => LS.get<Record<string,string>>("hgr_linepos", {})
+  );
   const qaaPositionRef = useRef<string>("");
-  useEffect(() => { qaaPositionRef.current = qaaPosition; LS.set("hgr_qaapos", qaaPosition); }, [qaaPosition]);
+  // derived: position of the currently selected line
+  const qaaPosition = linePositions[selectedId ?? ""] ?? "";
+  qaaPositionRef.current = qaaPosition; // keep ref synchronously in sync
+  const setQaaPosition = (pos: string) => {
+    const id = selectedId;
+    if (!id) return;
+    setLinePositions((prev) => {
+      const n = { ...prev };
+      if (pos) n[id] = pos; else delete n[id];
+      return n;
+    });
+  };
+  useEffect(() => { LS.set("hgr_linepos", linePositions); }, [linePositions]);
 
   /* ── Camera ──────────────────────────────────────────────────── */
   const videoRef      = useRef<HTMLVideoElement>(null);
@@ -170,8 +203,12 @@ export default function Hangar({ dark }: HangarProps) {
     const pos = qaaPositionRef.current || undefined;
     if (pos) {
       const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
-      if (fresh.some((l) => l.items.some((it) => it.position === pos))) {
-        setLastScan({ code, status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return;
+      const currLine = fresh.find((l) => l.id === selId);
+      const hit = currLine?.items.find((it) => it.position === pos);
+      if (hit) {
+        setLastScan({ code, status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
+        setPosConflict({ code, weight, fromExcel, position: pos, originalPosition: pos, conflictLine: currLine!.name, conflictCode: hit.code });
+        return;
       }
     }
     setLines((prev) => {
@@ -196,9 +233,13 @@ export default function Hangar({ dark }: HangarProps) {
     const pos = qaaPositionRef.current || undefined;
     if (pos) {
       const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
-      if (fresh.some((l) => l.items.some((it) => it.position === pos))) {
+      const currLine = fresh.find((l) => l.id === selId);
+      const hit = currLine?.items.find((it) => it.position === pos);
+      if (hit) {
         setLastScan({ code: "∅ vide", status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
-        setTimeout(() => playTone("error"), 120); return;
+        setTimeout(() => playTone("error"), 120);
+        setPosConflict({ code, weight: null, fromExcel: false, position: pos, originalPosition: pos, conflictLine: currLine!.name, conflictCode: hit.code });
+        return;
       }
     }
     setLines((prev) => {
@@ -242,11 +283,61 @@ export default function Hangar({ dark }: HangarProps) {
   /* ── Confirm pending manual weight ──────────────────────────── */
   const confirmPending = () => {
     if (!pending) return;
+    if (pending.position === "" || pending.weight.trim() === "") return;
     const w = parseFloat(pending.weight.replace(",", "."));
+    /* even-position weight check: warn if >15% heavier than an adjacent odd neighbor */
+    const posNum = parseInt(pending.position, 10);
+    if (!isNaN(w) && posNum % 2 === 0) {
+      const allItems = lines.flatMap((l) => l.items);
+      const offenders = [String(posNum - 1), String(posNum + 1)]
+        .map((npos) => {
+          const nb = allItems.find((it) => it.position === npos && it.weight !== null);
+          if (nb && nb.weight !== null && w > nb.weight * 1.15)
+            return { pos: npos, weight: nb.weight, pct: Math.round((w / nb.weight - 1) * 100) };
+          return null;
+        })
+        .filter((x): x is { pos: string; weight: number; pct: number } => x !== null);
+      if (offenders.length > 0) {
+        setForceWarning({ code: pending.code, weight: w, position: pending.position, offenders });
+        return;
+      }
+    }
     /* sync position back so addItem reads the right value from the ref */
     qaaPositionRef.current = pending.position;
     setQaaPosition(pending.position);
     addItem(pending.code, isNaN(w) ? null : w, false);
+    setPending(null);
+  };
+
+  const forceConfirm = () => {
+    if (!forceWarning) return;
+    qaaPositionRef.current = forceWarning.position;
+    setQaaPosition(forceWarning.position);
+    addItem(forceWarning.code, forceWarning.weight, false);
+    setForceWarning(null);
+    setPending(null);
+  };
+
+  const forcePosConfirm = () => {
+    if (!posConflict) return;
+    const selId = LS.get<string | null>("hgr_selectedId", null);
+    if (!selId) { setPosConflict(null); return; }
+    setLines((prev) => {
+      const idx = prev.findIndex((l) => l.id === selId);
+      if (idx === -1) return prev;
+      const line = prev[idx];
+      if (line.items.some((it) => it.code === posConflict.code)) {
+        setLastScan({ code: posConflict.code, status: "duplicate" });
+        setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
+        return prev;
+      }
+      setLastScan({ code: posConflict.code, status: "added" });
+      setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
+      const n = [...prev];
+      n[idx] = { ...line, items: [...line.items, { code: posConflict.code, weight: posConflict.weight, fromExcel: posConflict.fromExcel, position: posConflict.position }] };
+      return n;
+    });
+    setPosConflict(null);
     setPending(null);
   };
 
@@ -330,7 +421,12 @@ export default function Hangar({ dark }: HangarProps) {
     handleCode(v); setManualCode("");
   };
 
-  /* ── Summary computations ────────────────────────────────────── */
+  /* ── Summary computations ────────────────────────────────────── */  const occupiedPositions = new Set(
+    (selectedLine?.items ?? []).map((it) => it.position).filter(Boolean)
+  ) as Set<string>;
+  const videPositions = new Set(
+    (selectedLine?.items ?? []).filter((it) => it.code.startsWith("∅")).map((it) => it.position).filter(Boolean)
+  ) as Set<string>;
   const lineSummary = lines.map((l) => ({
     id: l.id, name: l.name,
     qty: l.items.length,
@@ -530,7 +626,7 @@ export default function Hangar({ dark }: HangarProps) {
             )}
           </div>
 
-          {/* Buttons + slider + position — one row */}
+          {/* Row 1 : all controls on one line */}
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
             <button onClick={cameraOn ? stopCamera : startCamera}
               style={{ ...btnBase, fontSize: isMobile ? 15 : 12, padding: isMobile ? "12px 20px" : "8px 16px",
@@ -547,26 +643,6 @@ export default function Hangar({ dark }: HangarProps) {
                 background: "transparent", border:`1px solid ${muted}`, color: muted }}>
               ∅ vide
             </button>
-            {/* Delay slider */}
-            <div style={{ display:"flex", alignItems:"center", gap:6, flex:1, minWidth:100 }}>
-              <span style={{ fontSize: isMobile ? 12 : 10, color:muted, whiteSpace:"nowrap", flexShrink:0 }}>Délai</span>
-              <input type="range" min={300} max={5000} step={100} value={scanDelay}
-                onChange={(e) => setScanDelay(Number(e.target.value))}
-                style={{ flex:1, minWidth:0, accentColor:accent }} />
-              <span style={{ fontSize: isMobile ? 12 : 10, color:text, whiteSpace:"nowrap", flexShrink:0 }}>{(scanDelay/1000).toFixed(1)}s</span>
-            </div>
-            {/* Position — right of slider */}
-            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-              <span style={{ fontSize: isMobile ? 12 : 10, color:muted, whiteSpace:"nowrap" }}>Pos.</span>
-              <input
-                value={qaaPosition}
-                onChange={(e) => setQaaPosition(e.target.value.toUpperCase())}
-                placeholder="A1"
-                style={{ width: isMobile ? 54 : 44, fontFamily:MONO, fontSize: isMobile ? 14 : 11,
-                  padding: isMobile ? "10px 6px" : "5px 5px", borderRadius:4,
-                  background:surface, border:`1px solid ${accent}`, color:text,
-                  outline:"none", textAlign:"center", fontWeight:700 }} />
-            </div>
             {cameraOn && (
               <div style={{ fontSize: isMobile ? 11 : 10, padding:"3px 6px", borderRadius:4, flexShrink:0,
                 background: useNative?accent+"18":(dark?"#0a0f20":"#e0e7ff"),
@@ -575,23 +651,84 @@ export default function Hangar({ dark }: HangarProps) {
                 {useNative?"⚡":"⚙"}
               </div>
             )}
+            <span style={{ fontSize: isMobile ? 12 : 10, color:muted, whiteSpace:"nowrap", flexShrink:0 }}>Délai</span>
+            <input type="range" min={300} max={5000} step={100} value={scanDelay}
+              onChange={(e) => setScanDelay(Number(e.target.value))}
+              style={{ width: isMobile ? 90 : 70, flexShrink:0, accentColor:accent }} />
+            <span style={{ fontSize: isMobile ? 12 : 10, color:text, whiteSpace:"nowrap", flexShrink:0 }}>{(scanDelay/1000).toFixed(1)}s</span>
+            <input value={manualCode} onChange={(e)=>setManualCode(e.target.value)}
+              onKeyDown={(e)=>e.key==="Enter"&&submitManual()}
+              placeholder="Saisie manuelle…"
+              style={{ flex:1, minWidth: isMobile ? 120 : 80, fontFamily:MONO, fontSize: isMobile ? 15 : 11,
+                padding: isMobile ? "10px 12px" : "6px 10px", borderRadius:4,
+                background:surface, border:`1px solid ${border}`, color:text, outline:"none" }} />
+            <button onClick={submitManual}
+              style={{ ...btnBase, padding: isMobile ? "12px 14px" : "6px 10px",
+                background:accent+"22", border:`1px solid ${accent}`, color:accent, fontWeight:700, flexShrink:0 }}>↵</button>
           </div>
+
+          {/* Row 3 : position slots 1–51 */}
+          {(() => {
+            return (
+              <div>
+                <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:5 }}>
+                  Emplacement
+                  {qaaPosition && <span style={{color:accent, fontWeight:700, marginLeft:6}}>→ {qaaPosition}</span>}
+                </div>
+{(() => {
+                  const CHIP = isMobile ? 34 : 26;
+                  const GAP  = 3;
+                  const half = (CHIP + GAP) / 2;
+                  const odds  = Array.from({length:26},(_,i)=>String(i*2+1));
+                  const evens = Array.from({length:25},(_,i)=>String(i*2+2));
+                  const chip = (s: string) => {
+                    const isSel = qaaPosition === s;
+                    const isOcc = occupiedPositions.has(s);
+                    const isVide = videPositions.has(s);
+                    return (
+                      <button key={s} disabled={isOcc && !isSel}
+                        onClick={() => setQaaPosition(isSel ? "" : s)}
+                        title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
+                        style={{
+                          fontFamily:MONO, fontSize: isMobile ? 12 : 9,
+                          width:CHIP, height:CHIP, flexShrink:0,
+                          borderRadius:4, padding:0, lineHeight:1,
+                          cursor: isOcc && !isSel ? "not-allowed" : "pointer",
+                          border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
+                          background: isSel ? accent+"33"
+                            : isVide ? (dark ? "#3b0764" : "#ede9fe")
+                            : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
+                            : (dark ? "#1a1a1a" : "#f0f0f0"),
+                          color: isSel ? accent
+                            : isVide ? (dark ? "#ddd6fe" : "#7c3aed")
+                            : isOcc  ? "#92400e"
+                            : muted,
+                          fontWeight: isSel || isVide ? 700 : 400,
+                          opacity: isOcc && !isSel ? 0.75 : 1,
+                        }}>{s}</button>
+                    );
+                  };
+                  return (
+                    <div style={{ overflowX:"auto", paddingBottom:4 }}>
+                      <div style={{ display:"inline-block", minWidth:"max-content" }}>
+                        <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>
+                          {evens.map(chip)}
+                        </div>
+                        <div style={{ display:"flex", gap:GAP }}>
+                          {odds.map(chip)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
 
           {cameraError && (
             <div style={{ fontSize: isMobile ? 14 : 11, color:"#ef4444", padding:"7px 12px",
               background:dark?"#2d0a0a":"#fee2e2", borderRadius:4, border:"1px solid #ef4444" }}>⚠ {cameraError}</div>
           )}
-
-          {/* Manual entry */}
-          <div style={{ display:"flex", gap:6, width:"100%" }}>
-            <input value={manualCode} onChange={(e)=>setManualCode(e.target.value)}
-              onKeyDown={(e)=>e.key==="Enter"&&submitManual()}
-              placeholder="Saisie manuelle d'une réf…"
-              style={{ flex:1, fontFamily:MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 12px" : "6px 10px", borderRadius:4,
-                background:surface, border:`1px solid ${border}`, color:text, outline:"none" }} />
-            <button onClick={submitManual}
-              style={{ ...btnBase, background:accent+"22", border:`1px solid ${accent}`, color:accent, fontWeight:700 }}>↵</button>
-          </div>
 
           {/* Scan feedback */}
           {lastScan && (
@@ -642,26 +779,31 @@ export default function Hangar({ dark }: HangarProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedLine.items.map((it, i) => (
-                          <tr key={it.code}>
-                            <td style={tdS()}><span style={{color:muted}}>{i+1}</span></td>
-                            <td style={tdS()}>{it.code}</td>
-                            <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
-                            {showPos && <td style={{...tdS(), fontWeight:700, color:it.position?accent:muted}}>{it.position ?? "—"}</td>}
+                        {selectedLine.items.map((it, i) => {
+                          const isVide = it.code.startsWith("∅");
+                          const lavBg  = "#7c3aed";
+                          const lavFg  = "#ffffff";
+                          return (
+                          <tr key={it.code} style={{ background: isVide ? lavBg : undefined }}>
+                            <td style={tdS()}><span style={{color: isVide ? "#ddd6fe" : muted}}>{i+1}</span></td>
+                            <td style={{...tdS(), color: isVide ? lavFg : text}}>{isVide ? "∅ vide" : it.code}</td>
+                            <td style={{...tdS(true), color: isVide ? "#ddd6fe" : (it.weight===null?amber:text)}}>{fmtW(it.weight)}</td>
+                            {showPos && <td style={{...tdS(), fontWeight:700, color: isVide ? "#ddd6fe" : (it.position?accent:muted)}}>{it.position ?? "—"}</td>}
                             <td style={tdS()}>
                               <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
-                                background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
-                                border:`1px solid ${it.fromExcel?accent:amber}`,
-                                color: it.fromExcel?accent:amber }}>
-                                {it.fromExcel?"Excel":"Manuel"}
+                                background: isVide ? "#5b21b6" : (it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7")),
+                                border:`1px solid ${isVide ? "#8b5cf6" : (it.fromExcel?accent:amber)}`,
+                                color: isVide ? lavFg : (it.fromExcel?accent:amber) }}>
+                                {isVide ? "∅" : (it.fromExcel?"Excel":"Manuel")}
                               </span>
                             </td>
                             <td style={tdS()}>
                               <button onClick={()=>removeItem(selectedLine.id, it.code)}
-                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color:muted, fontSize:12}}>×</button>
+                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color: isVide ? "#ddd6fe" : muted, fontSize:12}}>×</button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                       </>
                     );
@@ -721,48 +863,264 @@ export default function Hangar({ dark }: HangarProps) {
           alignItems:"center", justifyContent:"center", zIndex:1000 }}
           onClick={(e) => { if (e.target === e.currentTarget) setPending(null); }}>
           <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:10,
-            padding:"24px 20px", width:"min(360px, calc(100vw - 32px))", fontFamily:MONO, boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
+            padding:"24px 20px", width:"min(420px, calc(100vw - 32px))", fontFamily:MONO, boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
             <div style={{ fontSize: isMobile ? 14 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:12 }}>
               Réf. non trouvée dans Excel
             </div>
             <div style={{ fontSize: isMobile ? 15 : 13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:14 }}>
               {pending.code}
             </div>
-            {/* Position + Weight side by side */}
-            <div style={{ display:"flex", gap:10, marginBottom:14 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Position :</div>
-                <input value={pending.position}
-                  onChange={(e) => setPending({ ...pending, position: e.target.value.toUpperCase() })}
-                  onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
-                  placeholder="A1"
-                  style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
-                    padding: isMobile ? "12px 8px" : "7px 8px", borderRadius:5,
-                    background:bg, border:`1px solid ${accent}`, color:text, outline:"none",
-                    textAlign:"center", fontWeight:700, letterSpacing:"0.1em", boxSizing:"border-box" as const }} />
+            {/* Position slot grid */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                <span style={{ fontSize: isMobile ? 13 : 10, color:muted }}>Emplacement</span>
+                {pending.position
+                  ? <span style={{color:accent, fontWeight:700}}>→ {pending.position}</span>
+                  : <span style={{fontSize: isMobile ? 11 : 9, color:"#ef4444"}}>obligatoire</span>}
               </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Poids (kg) :</div>
-                <input autoFocus value={pending.weight} inputMode="decimal"
-                  onChange={(e) => setPending({ ...pending, weight: e.target.value })}
-                  onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
-                  placeholder="12.5"
-                  style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
-                    padding: isMobile ? "12px 8px" : "7px 8px", borderRadius:5,
-                    background:bg, border:`1px solid ${border}`, color:text, outline:"none",
-                    boxSizing:"border-box" as const }} />
-              </div>
+{(() => {
+                const CHIP = isMobile ? 34 : 26;
+                const GAP  = 3;
+                const half = (CHIP + GAP) / 2;
+                const odds  = Array.from({length:26},(_,i)=>String(i*2+1));
+                const evens = Array.from({length:25},(_,i)=>String(i*2+2));
+                const chip = (s: string) => {
+                  const isSel = pending.position === s;
+                  const isOcc = occupiedPositions.has(s);
+                  const isVide = videPositions.has(s);
+                  return (
+                    <button key={s} disabled={isOcc && !isSel}
+                      onClick={() => setPending({ ...pending, position: isSel ? "" : s })}
+                      title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
+                      style={{
+                        fontFamily:MONO, fontSize: isMobile ? 12 : 9,
+                        width:CHIP, height:CHIP, flexShrink:0,
+                        borderRadius:4, padding:0, lineHeight:1,
+                        cursor: isOcc && !isSel ? "not-allowed" : "pointer",
+                        border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
+                        background: isSel ? accent+"33"
+                          : isVide ? (dark ? "#3b0764" : "#ede9fe")
+                          : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
+                          : (dark ? "#1c1c1c" : "#f0f0f0"),
+                        color: isSel ? accent
+                          : isVide ? (dark ? "#ddd6fe" : "#7c3aed")
+                          : isOcc  ? "#92400e"
+                          : muted,
+                        fontWeight: isSel || isVide ? 700 : 400,
+                        opacity: isOcc && !isSel ? 0.75 : 1,
+                      }}>{s}</button>
+                  );
+                };
+                return (
+                  <div style={{ overflowX:"auto", paddingBottom:4 }}>
+                    <div style={{ display:"inline-block", minWidth:"max-content" }}>
+                      <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>
+                        {evens.map(chip)}
+                      </div>
+                      <div style={{ display:"flex", gap:GAP }}>
+                        {odds.map(chip)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
+            {/* Poids */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                <span style={{ fontSize: isMobile ? 13 : 10, color:muted }}>Poids (kg) :</span>
+                {pending.weight.trim() === "" && <span style={{ fontSize: isMobile ? 11 : 9, color:"#ef4444" }}>obligatoire</span>}
+              </div>
+              <input autoFocus value={pending.weight} inputMode="decimal"
+                onChange={(e) => setPending({ ...pending, weight: e.target.value })}
+                onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
+                placeholder="12.5"
+                style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
+                  padding: isMobile ? "12px 10px" : "8px 10px", borderRadius:5,
+                  background:bg, border:`1px solid ${pending.weight.trim()==="" ? "#ef4444" : border}`, color:text, outline:"none",
+                  boxSizing:"border-box" as const }} />
+            </div>
+            {(() => {
+              const missingPos = pending.position === "";
+              const missingWt  = pending.weight.trim() === "";
+              const canAdd = !missingPos && !missingWt;
+              return (
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={confirmPending} disabled={!canAdd}
+                    style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px",
+                      background: canAdd ? accent+"22" : (dark?"#2a2a2a":"#e5e7eb"),
+                      border:`1px solid ${canAdd ? accent : border}`,
+                      color: canAdd ? accent : muted,
+                      fontWeight:700, fontSize: isMobile ? 15 : 12,
+                      cursor: canAdd ? "pointer" : "not-allowed",
+                      opacity: canAdd ? 1 : 0.5 }}>
+                    ✓ Ajouter
+                  </button>
+                  <button onClick={() => setPending(null)}
+                    style={{ ...btnBase, padding:"9px 14px", background:"transparent",
+                      border:`1px solid ${border}`, color:muted }}>
+                    Annuler
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Position-conflict force modal ─────────────────────────── */}
+      {posConflict && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex",
+          alignItems:"center", justifyContent:"center", zIndex:1050 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setPosConflict(null); }}>
+          <div style={{ background:surface, border:`2px solid ${amber}`, borderRadius:10,
+            padding:"24px 20px", width:"min(400px, calc(100vw - 32px))", fontFamily:MONO,
+            boxShadow:"0 8px 40px rgba(0,0,0,0.5)", boxSizing:"border-box" as const }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+              <span style={{ fontSize:20 }}>📌</span>
+              <span style={{ fontSize: isMobile ? 14 : 12, fontWeight:700, color:amber }}>Emplacement déjà occupé</span>
+            </div>
+            <div style={{ fontSize: isMobile ? 13 : 11, color:text, marginBottom:4 }}>
+              <span style={{ color:muted }}>Nouvelle réf. </span>
+              <span style={{ fontWeight:700, wordBreak:"break-all" }}>{posConflict.code}</span>
+            </div>
+            <div style={{ fontSize: isMobile ? 13 : 11, color:text, marginBottom:14 }}>
+              <span style={{ color:muted }}>Pos. demandée </span>
+              <span style={{ fontWeight:700, color:accent }}>{posConflict.position}</span>
+            </div>
+            <div style={{ marginBottom:16, padding:"10px 12px", borderRadius:6,
+              background:dark?"#1c1000":"#fffbeb", border:`1px solid ${amber}` }}>
+              <div style={{ fontSize: isMobile ? 11 : 9, color:amber, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Occupée par</div>
+              <div style={{ fontSize: isMobile ? 13 : 11, color:text, fontWeight:700, wordBreak:"break-all", marginBottom:2 }}>{posConflict.conflictCode}</div>
+              <div style={{ fontSize: isMobile ? 11 : 9, color:muted }}>ligne : {posConflict.conflictLine}</div>
+            </div>
+            {/* slot grid to pick a different position */}
+            {(() => {
+              const CHIP = isMobile ? 32 : 24;
+              const GAP  = 3;
+              const half = (CHIP + GAP) / 2;
+              const odds  = Array.from({length:26},(_,i)=>String(i*2+1));
+              const evens = Array.from({length:25},(_,i)=>String(i*2+2));
+              const isOrig = (s: string) => s === posConflict.originalPosition;
+              const chip = (s: string) => {
+                const isSel = posConflict.position === s;
+                const isOcc = occupiedPositions.has(s);
+                const disabled = isOcc && !isSel && !isOrig(s);
+                return (
+                  <button key={s} disabled={disabled}
+                    onClick={() => setPosConflict({ ...posConflict, position: isSel && !isOrig(s) ? posConflict.originalPosition : s })}
+                    title={isOrig(s) ? `Emplacement ${s} (conflit)` : isOcc && !isSel ? `Emplacement ${s} occupé` : `Emplacement ${s}`}
+                    style={{
+                      fontFamily:MONO, fontSize: isMobile ? 11 : 9,
+                      width:CHIP, height:CHIP, flexShrink:0,
+                      borderRadius:4, padding:0, lineHeight:1,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      border: isSel
+                        ? `2px solid ${isOrig(s) ? amber : accent}`
+                        : `1px solid ${isOcc ? "transparent" : border}`,
+                      background: isSel
+                        ? (isOrig(s) ? amber+"33" : accent+"33")
+                        : isOcc ? (dark?"#2a1a00":"#fde68a") : (dark?"#1c1c1c":"#f0f0f0"),
+                      color: isSel
+                        ? (isOrig(s) ? amber : accent)
+                        : isOcc ? "#92400e" : muted,
+                      fontWeight: isSel ? 700 : 400,
+                      opacity: disabled ? 0.4 : 1,
+                    }}>{s}</button>
+                );
+              };
+              return (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:6 }}>
+                    Choisir un autre emplacement
+                    {posConflict.position !== posConflict.originalPosition &&
+                      <span style={{color:accent, fontWeight:700, marginLeft:6}}>→ {posConflict.position}</span>}
+                  </div>
+                  <div style={{ overflowX:"auto", paddingBottom:4 }}>
+                    <div style={{ display:"inline-block", minWidth:"max-content" }}>
+                      <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>{evens.map(chip)}</div>
+                      <div style={{ display:"flex", gap:GAP }}>{odds.map(chip)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            {/* actions */}
+            {(() => {
+              const isStillConflict = posConflict.position === posConflict.originalPosition;
+              return (
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={forcePosConfirm}
+                    style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px",
+                      background: isStillConflict ? amber+"22" : accent+"22",
+                      border:`1px solid ${isStillConflict ? amber : accent}`,
+                      color: isStillConflict ? amber : accent,
+                      fontWeight:700, fontSize: isMobile ? 14 : 12, cursor:"pointer" }}>
+                    {isStillConflict ? "⚠ Forcer quand même" : `✓ Confirmer → ${posConflict.position}`}
+                  </button>
+                  <button onClick={() => setPosConflict(null)}
+                    style={{ ...btnBase, padding:"9px 14px", background:"transparent",
+                      border:`1px solid ${border}`, color:muted }}>
+                    Annuler
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Force-position warning modal ─────────────────────────── */}
+      {forceWarning && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex",
+          alignItems:"center", justifyContent:"center", zIndex:1100 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setForceWarning(null); }}>
+          <div style={{ background:surface, border:`2px solid ${danger}`, borderRadius:10,
+            padding:"24px 20px", width:"min(400px, calc(100vw - 32px))", fontFamily:MONO,
+            boxShadow:"0 8px 40px rgba(0,0,0,0.5)", boxSizing:"border-box" as const }}>
+            {/* header */}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+              <span style={{ fontSize:20 }}>⚠️</span>
+              <span style={{ fontSize: isMobile ? 14 : 12, fontWeight:700, color:danger }}>Poids excessif en hauteur</span>
+            </div>
+            {/* coil info */}
+            <div style={{ fontSize: isMobile ? 13 : 11, color:text, marginBottom:4 }}>
+              <span style={{ color:muted }}>Réf. </span>
+              <span style={{ fontWeight:700, wordBreak:"break-all" }}>{forceWarning.code}</span>
+            </div>
+            <div style={{ fontSize: isMobile ? 13 : 11, color:text, marginBottom:14 }}>
+              <span style={{ color:muted }}>Pos. </span>
+              <span style={{ fontWeight:700, color:accent }}>{forceWarning.position}</span>
+              <span style={{ color:muted }}> — poids </span>
+              <span style={{ fontWeight:700 }}>{fmtW(forceWarning.weight)} kg</span>
+            </div>
+            {/* offenders */}
+            {forceWarning.offenders.map((o) => (
+              <div key={o.pos} style={{ marginBottom:8, padding:"9px 12px", borderRadius:6,
+                background:dark?"#2d0a0a":"#fee2e2", border:`1px solid ${danger}` }}>
+                <div style={{ fontSize: isMobile ? 12 : 10, color:danger, marginBottom:2 }}>
+                  Pos. <strong>{o.pos}</strong> (dessous) — {fmtW(o.weight)} kg
+                </div>
+                <div style={{ fontSize: isMobile ? 13 : 11, color:danger, fontWeight:700 }}>
+                  +{o.pct}% plus lourd que cette bobine voisine
+                </div>
+              </div>
+            ))}
+            <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:16, marginTop:4 }}>
+              Une bobine lourde en position haute sur une plus légère présente un risque de stabilité.
+            </div>
+            {/* actions */}
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={confirmPending}
-                style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px", background:accent+"22",
-                  border:`1px solid ${accent}`, color:accent, fontWeight:700, fontSize: isMobile ? 15 : 12 }}>
-                ✓ Ajouter
+              <button onClick={forceConfirm}
+                style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px",
+                  background:danger+"22", border:`1px solid ${danger}`, color:danger,
+                  fontWeight:700, fontSize: isMobile ? 14 : 12 }}>
+                ⚠ Forcer quand même
               </button>
-              <button onClick={() => setPending(null)}
+              <button onClick={() => setForceWarning(null)}
                 style={{ ...btnBase, padding:"9px 14px", background:"transparent",
                   border:`1px solid ${border}`, color:muted }}>
-                Annuler
+                Modifier
               </button>
             </div>
           </div>
