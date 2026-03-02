@@ -50,11 +50,11 @@ const LINE_BG_DARK  = ["#1c1305","#051c09","#06091c","#1a0512","#051a1a","#14190
 const LINE_BG_LIGHT = ["#fff7ed","#f0fdf4","#eff6ff","#fdf4ff","#f0fdfa","#fefce8","#fff1f2"];
 
 export default function Hangar({ dark }: HangarProps) {
-  const bg      = dark ? "#0d0d0d" : "#f5f5f5";
-  const surface = dark ? "#141414" : "#ffffff";
-  const text    = dark ? "#e8e8e0" : "#1a1a1a";
-  const muted   = dark ? "#555"    : "#888";
-  const border  = dark ? "#2a2a2a" : "#d0d0d0";
+  const bg      = dark ? "#0f0800" : "#fff5f2";
+  const surface = dark ? "#1a0e00" : "#ffffff";
+  const text    = dark ? "#fed7aa" : "#9f1239";
+  const muted   = dark ? "#a16207" : "#be185d";
+  const border  = dark ? "#3d1a00" : "#fecdd3";
   const danger  = dark ? "#f87171" : "#dc2626";
   const amber   = "#d97706";
 
@@ -671,14 +671,12 @@ export default function Hangar({ dark }: HangarProps) {
                           cursor: isOcc && !isSel ? "not-allowed" : "pointer",
                           border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
                           background: isSel ? accent+"33"
-                            : isVide ? (dark ? "#3b0764" : "#ede9fe")
                             : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
                             : (dark ? "#1a1a1a" : "#f0f0f0"),
                           color: isSel ? accent
-                            : isVide ? (dark ? "#ddd6fe" : "#7c3aed")
                             : isOcc  ? "#92400e"
                             : muted,
-                          fontWeight: isSel || isVide ? 700 : 400,
+                          fontWeight: isSel ? 700 : 400,
                           opacity: isOcc && !isSel ? 0.75 : 1,
                         }}>{s}</button>
                     );
@@ -756,25 +754,23 @@ export default function Hangar({ dark }: HangarProps) {
                       <tbody>
                         {selectedLine.items.map((it, i) => {
                           const isVide = it.code.startsWith("∅");
-                          const lavBg  = "#7c3aed";
-                          const lavFg  = "#ffffff";
                           return (
-                          <tr key={it.code} style={{ background: isVide ? lavBg : undefined }}>
-                            <td style={tdS()}><span style={{color: isVide ? "#ddd6fe" : muted}}>{i+1}</span></td>
-                            <td style={{...tdS(), color: isVide ? lavFg : text}}>{isVide ? "∅ vide" : it.code}</td>
-                            <td style={{...tdS(true), color: isVide ? "#ddd6fe" : (it.weight===null?amber:text)}}>{fmtW(it.weight)}</td>
-                            {showPos && <td style={{...tdS(), fontWeight:700, color: isVide ? "#ddd6fe" : (it.position?accent:muted)}}>{it.position ?? "—"}</td>}
+                          <tr key={it.code}>
+                            <td style={tdS()}><span style={{color: muted}}>{i+1}</span></td>
+                            <td style={{...tdS(), color: text}}>{isVide ? "∅ vide" : it.code}</td>
+                            <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
+                            {showPos && <td style={{...tdS(), fontFamily:MONO, fontWeight:700, color: it.position?accent:muted}}>{it.position ? `${selectedLine.name}${String(parseInt(it.position)).padStart(2,"0")}` : "—"}</td>}
                             <td style={tdS()}>
                               <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
-                                background: isVide ? "#5b21b6" : (it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7")),
-                                border:`1px solid ${isVide ? "#8b5cf6" : (it.fromExcel?accent:amber)}`,
-                                color: isVide ? lavFg : (it.fromExcel?accent:amber) }}>
+                                background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
+                                border:`1px solid ${it.fromExcel?accent:amber}`,
+                                color: it.fromExcel?accent:amber }}>
                                 {isVide ? "∅" : (it.fromExcel?"Excel":"Manuel")}
                               </span>
                             </td>
                             <td style={tdS()}>
                               <button onClick={()=>removeItem(selectedLine.id, it.code)}
-                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color: isVide ? "#ddd6fe" : muted, fontSize:12}}>×</button>
+                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color: muted, fontSize:12}}>×</button>
                             </td>
                           </tr>
                           );
@@ -874,14 +870,12 @@ export default function Hangar({ dark }: HangarProps) {
                         cursor: isOcc && !isSel ? "not-allowed" : "pointer",
                         border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
                         background: isSel ? accent+"33"
-                          : isVide ? (dark ? "#3b0764" : "#ede9fe")
                           : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
                           : (dark ? "#1c1c1c" : "#f0f0f0"),
                         color: isSel ? accent
-                          : isVide ? (dark ? "#ddd6fe" : "#7c3aed")
                           : isOcc  ? "#92400e"
                           : muted,
-                        fontWeight: isSel || isVide ? 700 : 400,
+                        fontWeight: isSel ? 700 : 400,
                         opacity: isOcc && !isSel ? 0.75 : 1,
                       }}>{s}</button>
                   );

@@ -84,14 +84,14 @@ interface PointageProps {
 /* ═══════════════════ COMPONENT ════════════════════════════ */
 export default function Pointage({ dark, initialData }: PointageProps) {
   /* Theme */
-  const bg      = dark ? "#0d0d0d" : "#f5f5f5";
-  const surface = dark ? "#141414" : "#fff";
-  const text    = dark ? "#e8e8e0" : "#1a1a1a";
-  const accent  = dark ? "#6ee7b7" : "#059669";
-  const muted   = dark ? "#555"    : "#888";
-  const border  = dark ? "#222"    : "#ddd";
-  const hdrBg   = dark ? "#0b0b0b" : "#f0f0f0";
-  const rowAlt  = dark ? "#111"    : "#f9f9f9";
+  const bg      = dark ? "#04040e" : "#eff6ff";
+  const surface = dark ? "#08081c" : "#fff";
+  const text    = dark ? "#bae6fd" : "#1e3a8a";
+  const accent  = dark ? "#22d3ee" : "#1d4ed8";
+  const muted   = dark ? "#2d6a99" : "#3b82f6";
+  const border  = dark ? "#112244" : "#bfdbfe";
+  const hdrBg   = dark ? "#02020b" : "#dbeafe";
+  const rowAlt  = dark ? "#060616" : "#f0f7ff";
 
   const vw       = useWindowWidth();
   const isMobile = vw < 640;
@@ -129,6 +129,10 @@ export default function Pointage({ dark, initialData }: PointageProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [destOpen,   setDestOpen]   = useState(false);
   const [histOpen,   setHistOpen]   = useState(false);
+
+  /* Header inline editing */
+  const [editingHeader,    setEditingHeader]    = useState<number | null>(null);
+  const [editingHeaderVal, setEditingHeaderVal] = useState("");
 
   /* ─── Persist ───────────────────────────────────────────── */
   useEffect(() => { LS.set("ptg_headers",      headers);       }, [headers]);
@@ -206,14 +210,6 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     setSortCol(null); setSortDir("none");
   };
 
-  const sortIcon = (ci: number) => {
-    if (sortCol !== ci || sortDir === "none")
-      return <span style={{ opacity: 0.3, fontSize: 11, lineHeight: 1 }}>−</span>;
-    return sortDir === "asc"
-      ? <span style={{ color: accent, fontSize: 11, lineHeight: 1 }}>↓</span>
-      : <span style={{ color: accent, fontSize: 11, lineHeight: 1 }}>↑</span>;
-  };
-
   /* ─── Destinations ──────────────────────────────────────── */
   const addDestination = () => {
     const name = newDestName.trim(); if (!name) return;
@@ -268,7 +264,7 @@ export default function Pointage({ dark, initialData }: PointageProps) {
     color: text, outline: "none", ...extra,
   });
   const btnStyle = (extra?: CSSProperties): CSSProperties => ({
-    fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.1em",
+    fontFamily: MONO, fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.1em",
     textTransform: isMobile ? "none" : "uppercase" as const, cursor: "pointer", border: "none",
     borderRadius: 3, padding: isMobile ? "12px 18px" : "6px 14px", ...extra,
   });
@@ -577,33 +573,47 @@ export default function Pointage({ dark, initialData }: PointageProps) {
           {/* ══ TABLE ══ */}
           <div style={{ overflowX: "auto", borderRadius: 6, border: `1px solid ${border}` }}
             onClick={(e) => e.stopPropagation()}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: MONO }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: MONO }}>
               <thead>
                 <tr>
                   {[...headers, "DEST"].map((h, ci) => {
                     const isDestCol = ci === headers.length;
                     return (
-                      <th key={ci} style={{
-                        background: hdrBg, borderBottom: `2px solid ${border}`,
-                        padding: "8px 10px", textAlign: "left",
-                        fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase",
-                        color: accent, whiteSpace: "nowrap", position: "relative",
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <span>{h}</span>
-                          {isDestCol ? (
-                            <button onClick={() => cycleSortCol(-1)} title="Trier par destination"
-                              style={{ background: "transparent", border: "none", cursor: "pointer",
-                                padding: "0 2px", display: "flex", alignItems: "center" }}>
-                              {sortIcon(-1)}
-                            </button>
-                          ) : (
-                            <>
-                              <button onClick={() => cycleSortCol(ci)} title="Trier"
-                                style={{ background: "transparent", border: "none", cursor: "pointer",
-                                  padding: "0 2px", display: "flex", alignItems: "center" }}>
-                                {sortIcon(ci)}
-                              </button>
+                      <th key={ci}
+                        onClick={(e) => { if (editingHeader !== ci) { e.stopPropagation(); cycleSortCol(isDestCol ? -1 : ci); } }}
+                        onDoubleClick={(e) => { if (!isDestCol) { e.stopPropagation(); setEditingHeader(ci); setEditingHeaderVal(h); } }}
+                        style={{
+                          background: hdrBg,
+                          borderBottom: (sortCol === (isDestCol ? -1 : ci) && sortDir !== "none") ? `2px solid ${accent}` : `2px solid ${border}`,
+                          padding: "8px 10px", textAlign: "left",
+                          fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+                          color: (sortCol === (isDestCol ? -1 : ci) && sortDir !== "none") ? accent : text,
+                          whiteSpace: "nowrap", position: "relative",
+                          cursor: "pointer", userSelect: "none" as const,
+                        }}>
+                        {editingHeader === ci && !isDestCol ? (
+                          <input autoFocus value={editingHeaderVal}
+                            onChange={(e) => setEditingHeaderVal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                if (editingHeaderVal.trim()) setHeaders((p) => p.map((hh, i) => i === ci ? editingHeaderVal.trim() : hh));
+                                setEditingHeader(null);
+                              }
+                              if (e.key === "Escape") setEditingHeader(null);
+                            }}
+                            onBlur={() => {
+                              if (editingHeaderVal.trim()) setHeaders((p) => p.map((hh, i) => i === ci ? editingHeaderVal.trim() : hh));
+                              setEditingHeader(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ fontFamily: MONO, fontSize: 11, background: "transparent", border: "none",
+                              borderBottom: `1px solid ${accent}`, color: accent, outline: "none",
+                              width: "100%", padding: 0, letterSpacing: "0.12em", textTransform: "uppercase" as const }}
+                          />
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span>{h}</span>
+                            {!isDestCol && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); closeAllFmt(ci); }}
                                 title="Format visuel"
@@ -614,9 +624,9 @@ export default function Pointage({ dark, initialData }: PointageProps) {
                                   color: fmtPattern[ci] ? accent : muted + "bb",
                                   padding: "1px 4px", borderRadius: 2, fontSize: 12, lineHeight: 1,
                                 }}>⋯</button>
-                            </>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Format popover */}
                         {!isDestCol && fmtOpen[ci] && (

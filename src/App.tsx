@@ -10,7 +10,7 @@ import { useWindowWidth } from "./useWindowWidth";
 type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "cleaner", label: "Excel Cleaner" },
+  { id: "cleaner", label: "Cleaner" },
   { id: "pointage",      label: "Pointage" },
   { id: "scan",          label: "Scan" },
   { id: "tally",         label: "Tally" },
