@@ -9,12 +9,12 @@ import { useWindowWidth } from "./useWindowWidth";
 
 type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "cleaner", label: "Cleaner" },
-  { id: "pointage",      label: "Pointage" },
-  { id: "scan",          label: "Scan" },
-  { id: "tally",         label: "Tally" },
-  { id: "hangar",        label: "Hangar" },
+const TABS: { id: TabId; label: string; color: [string,string] }[] = [
+  { id: "cleaner",  label: "Cleaner",  color: ["#f472b6","#db2777"] },
+  { id: "pointage", label: "Pointage", color: ["#38bdf8","#1d4ed8"] },
+  { id: "scan",     label: "Scan",     color: ["#a78bfa","#7c3aed"] },
+  { id: "tally",    label: "Tally",    color: ["#4ade80","#16a34a"] },
+  { id: "hangar",   label: "Hangar",   color: ["#fb923c","#ea580c"] },
 ];
 
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
@@ -28,7 +28,6 @@ export default function App() {
 
   const SURFACE = dark ? "#141414" : "#f0f0f0";
   const BORDER  = dark ? "#2a2a2a" : "#d0d0d0";
-  const ACCENT  = dark ? "#6ee7b7" : "#059669";
   const MUTED   = dark ? "#555"    : "#888";
   const TEXT    = dark ? "#e8e8e0" : "#1a1a1a";
   const BG      = dark ? "#0d0d0d" : "#f5f5f5";
@@ -51,6 +50,7 @@ export default function App() {
         <div style={{ display: "flex", flex: 1, alignItems: "flex-end", flexShrink: 0 }}>
           {TABS.map((tab) => {
             const isActive = tab.id === active;
+            const tabColor = dark ? tab.color[0] : tab.color[1];
             return (
               <button
                 key={tab.id}
@@ -60,12 +60,12 @@ export default function App() {
                   fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.1em",
                   textTransform: isMobile ? "none" : "uppercase", padding: isMobile ? "16px 14px 14px" : "12px 22px 10px",
                   border: "none", whiteSpace: "nowrap", flexShrink: 0,
-                  borderBottom: isActive ? `2px solid ${ACCENT}` : "2px solid transparent",
-                  background: "transparent", color: isActive ? ACCENT : MUTED,
+                  borderBottom: isActive ? `2px solid ${tabColor}` : "2px solid transparent",
+                  background: "transparent", color: isActive ? tabColor : MUTED,
                   cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
                   outline: "none", marginBottom: -1,
                 }}
-                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = TEXT; }}
+                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = tabColor; }}
                 onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = MUTED; }}
               >
                 {tab.label}

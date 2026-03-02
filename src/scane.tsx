@@ -29,12 +29,12 @@ interface ScaneProps { dark: boolean; }
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
 
 export default function Scane({ dark }: ScaneProps) {
-  const bg      = dark ? "#0d0d0d" : "#f5f5f5";
-  const surface = dark ? "#141414" : "#ffffff";
-  const text    = dark ? "#e8e8e0" : "#1a1a1a";
-  const accent  = dark ? "#6ee7b7" : "#059669";
-  const muted   = dark ? "#555"    : "#888";
-  const border  = dark ? "#2a2a2a" : "#d0d0d0";
+  const bg      = dark ? "#0b0915" : "#f5f0ff";
+  const surface = dark ? "#140f22" : "#faf5ff";
+  const text    = dark ? "#e8e0f8" : "#1a0a2e";
+  const accent  = dark ? "#c084fc" : "#7c3aed";
+  const muted   = dark ? "#7c6899" : "#8b7aaa";
+  const border  = dark ? "#3d2b5e" : "#d4c4f0";
 
   const vw       = useWindowWidth();
   const isMobile = vw < 640;
@@ -240,9 +240,9 @@ export default function Scane({ dark }: ScaneProps) {
       {/* Engine badge */}
       {cameraOn && (
         <div style={{ marginBottom: 10, display: "inline-block", padding: "3px 10px",
-          background: useNative ? (dark?"#0a200f":"#dcfce7") : (dark?"#0a0f20":"#e0e7ff"),
-          border: `1px solid ${useNative ? accent : (dark?"#818cf8":"#4f46e5")}`,
-          borderRadius: 4, fontSize: isMobile ? 13 : 10, color: useNative ? accent : (dark?"#818cf8":"#4f46e5") }}>
+          background: useNative ? (dark?"#200a38":"#f3e8ff") : (dark?"#0f0a28":"#ede9fe"),
+          border: `1px solid ${useNative ? accent : (dark?"#a78bfa":"#6d28d9")}`,
+          borderRadius: 4, fontSize: isMobile ? 13 : 10, color: useNative ? accent : (dark?"#a78bfa":"#6d28d9") }}>
           {useNative ? "⚡ BarcodeDetector (natif)" : "⚙ ZXing (compatible tous navigateurs)"}
         </div>
       )}
@@ -323,8 +323,9 @@ export default function Scane({ dark }: ScaneProps) {
         <div style={{ flex: 1, minWidth: isMobile ? "unset" : 240, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 12 }}>
           <button onClick={cameraOn ? stopCamera : startCamera}
             style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 12, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "14px 22px" : "10px 18px",
-              background: cameraOn ? (dark?"#2d0a0a":"#fee2e2") : (dark?"#0a200f":"#dcfce7"),
+              background: cameraOn ? (dark?"#2d0a0a":"#fee2e2") : (dark?"#200a38":"#f3e8ff"),
               border: `1px solid ${cameraOn ? "#ef4444" : accent}`,
+
               borderRadius: 5, color: cameraOn ? "#ef4444" : accent,
               cursor: "pointer", fontWeight: 700 }}>
             {cameraOn ? "⏹ Arrêter la caméra" : "▶ Démarrer la caméra"}
@@ -340,7 +341,7 @@ export default function Scane({ dark }: ScaneProps) {
           {/* Scan result */}
           {lastScan && (
             <div style={{ padding: "12px 14px", borderRadius: 6,
-              background: lastScan.matched ? (dark?"#0a1f0f":"#f0fdf4") : (dark?"#1c1000":"#fffbeb"),
+              background: lastScan.matched ? (dark?"#160b28":"#f3e8ff") : (dark?"#1c1000":"#fffbeb"),
               border: `1px solid ${lastScan.matched ? accent : "#d97706"}` }}>
               <div style={{ fontSize: isMobile ? 13 : 10, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.1em", marginBottom: 5 }}>
                 Dernier scan

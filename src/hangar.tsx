@@ -21,9 +21,10 @@ const LS = {
 };
 
 /* ── Types ────────────────────────────────────────────────────────── */
-interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; position?: string; }
+interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; position?: string; wagonId?: string; dechargement?: string; }
 interface HangarLine  { id: string; name: string; items: HangarItem[]; }
 interface HangarProps { dark: boolean; }
+interface Wagon { id: string; serial: string; coilCount: number; port?: string; }
 interface ForceWarning {
   code: string;
   weight: number;
@@ -78,12 +79,58 @@ export default function Hangar({ dark }: HangarProps) {
   /* ── Lines ───────────────────────────────────────────────────── */
   const [lines,       setLines]       = useState<HangarLine[]>(() => LS.get("hgr_lines2", []));
   const [selectedId,  setSelectedId]  = useState<string | null>(() => LS.get("hgr_selectedId", null));
-
   useEffect(() => { LS.set("hgr_lines2",     lines);      }, [lines]);
   useEffect(() => { LS.set("hgr_selectedId", selectedId); }, [selectedId]);
 
+  /* ── Wagons ───────────────────────────────────────────────────── */
+  const [wagons,          setWagons]          = useState<Wagon[]>(() => LS.get("hgr_wagons", []));
+  const [selectedWagonId, setSelectedWagonId] = useState<string | null>(() => LS.get("hgr_wagonId", null));
+  const [wagonSerial,     setWagonSerial]     = useState("");
+  const [wagonCoils,      setWagonCoils]      = useState("");
+  const [editingWagonId,  setEditingWagonId]  = useState<string | null>(null);
+  const [addingWagon,     setAddingWagon]     = useState(false);
+  const [wagonPort,       setWagonPort]       = useState("");
+  const [recapSortAsc,    setRecapSortAsc]    = useState<boolean | null>(null);
+  const [wagonSortAsc,    setWagonSortAsc]    = useState<boolean | null>(null);
+  const [clearConfirmId,  setClearConfirmId]  = useState<string | null>(null);
+  const [hoveredWagonBtn, setHoveredWagonBtn] = useState<string | null>(null);
+  const [hoveredLetter,   setHoveredLetter]   = useState<string | null>(null);
+  const [hoveredChip,     setHoveredChip]     = useState<string | null>(null);
+  const [itemsOpen,       setItemsOpen]       = useState(true);
+  const [recapOpen,       setRecapOpen]       = useState(true);
+  const [wagonSumOpen,    setWagonSumOpen]    = useState(true);
+  const selectedWagonIdRef = useRef<string | null>(null);
+  selectedWagonIdRef.current = selectedWagonId;
+  useEffect(() => { LS.set("hgr_wagons",  wagons);          }, [wagons]);
+  useEffect(() => { LS.set("hgr_wagonId", selectedWagonId); }, [selectedWagonId]);
+
+  const addWagon = () => {
+    const serial = wagonSerial.trim();
+    const count  = parseInt(wagonCoils.trim(), 10);
+    if (!serial || isNaN(count) || count < 0) return;
+    const port = wagonPort.trim() || undefined;
+    if (editingWagonId) {
+      setWagons((p) => p.map((w) => w.id === editingWagonId ? { ...w, serial, coilCount: count, port } : w));
+      setEditingWagonId(null);
+    } else {
+      const w: Wagon = { id: newId(), serial, coilCount: count, port };
+      setWagons((p) => [...p, w]);
+      setSelectedWagonId(w.id);
+    }
+    setAddingWagon(false);
+    setWagonSerial(""); setWagonCoils(""); setWagonPort("");
+  };
+  const deleteWagon = (id: string) => {
+    setWagons((p) => p.filter((w) => w.id !== id));
+    if (selectedWagonId === id) setSelectedWagonId(null);
+  };
+  const startEditWagon = (w: Wagon) => {
+    setEditingWagonId(w.id); setWagonSerial(w.serial); setWagonCoils(String(w.coilCount)); setWagonPort(w.port ?? "");
+  };
+  const cancelEditWagon = () => { setEditingWagonId(null); setAddingWagon(false); setWagonSerial(""); setWagonCoils(""); setWagonPort(""); };
+
   /* ── Pending (unknown code → manual weight entry) ───────────── */
-  const [pending, setPending] = useState<{ code: string; weight: string; position: string } | null>(null);
+  const [pending, setPending] = useState<{ code: string; weight: string; position: string; dechargement: string } | null>(null);
   const pendingRef = useRef<boolean>(false);
   useEffect(() => { pendingRef.current = pending !== null; }, [pending]);
 
@@ -195,7 +242,7 @@ export default function Hangar({ dark }: HangarProps) {
   }, []);
 
   /* ── Add item to selected line ───────────────────────────────── */
-  const addItem = useCallback((code: string, weight: number | null, fromExcel: boolean) => {
+  const addItem = useCallback((code: string, weight: number | null, fromExcel: boolean, dechargement?: string) => {
     const selId = LS.get<string | null>("hgr_selectedId", null);
     if (!selId) { setLastScan({ code, status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return; }
     const pos = qaaPositionRef.current || undefined;
@@ -218,7 +265,7 @@ export default function Hangar({ dark }: HangarProps) {
         return prev;
       }
       setLastScan({ code, status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
-      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel, position: pos }] }; return n;
+      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel, position: pos, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined, dechargement: dechargement || undefined }] }; return n;
     });
   }, [accent]);
 
@@ -244,7 +291,7 @@ export default function Hangar({ dark }: HangarProps) {
       const idx = prev.findIndex((l) => l.id === selId);
       if (idx === -1) return prev;
       const line = prev[idx];
-      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight: null, fromExcel: false, position: pos }] }; return n;
+      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight: null, fromExcel: false, position: pos, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined }] }; return n;
     });
     setLastScan({ code: "∅ vide", status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
     setTimeout(() => playTone("found"), 120);
@@ -272,7 +319,7 @@ export default function Hangar({ dark }: HangarProps) {
       setLastScan({ code, status: "unknown" });
       setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
       setTimeout(() => playTone("error"), 120);
-      setPending({ code, weight: "", position: qaaPositionRef.current });
+      setPending({ code, weight: "", position: qaaPositionRef.current, dechargement: "" });
     }
   }, [lookupResult, addItem, playTone]);
 
@@ -303,7 +350,7 @@ export default function Hangar({ dark }: HangarProps) {
     /* sync position back so addItem reads the right value from the ref */
     qaaPositionRef.current = pending.position;
     setQaaPosition(pending.position);
-    addItem(pending.code, isNaN(w) ? null : w, false);
+    addItem(pending.code, isNaN(w) ? null : w, false, pending.dechargement || undefined);
     setPending(null);
   };
 
@@ -332,7 +379,7 @@ export default function Hangar({ dark }: HangarProps) {
       setLastScan({ code: posConflict.code, status: "added" });
       setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
       const n = [...prev];
-      n[idx] = { ...line, items: [...line.items, { code: posConflict.code, weight: posConflict.weight, fromExcel: posConflict.fromExcel, position: posConflict.position }] };
+      n[idx] = { ...line, items: [...line.items, { code: posConflict.code, weight: posConflict.weight, fromExcel: posConflict.fromExcel, position: posConflict.position, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined }] };
       return n;
     });
     setPosConflict(null);
@@ -420,15 +467,37 @@ export default function Hangar({ dark }: HangarProps) {
   const videPositions = new Set(
     (selectedLine?.items ?? []).filter((it) => it.code.startsWith("∅")).map((it) => it.position).filter(Boolean)
   ) as Set<string>;
-  const lineSummary = lines.map((l) => ({
+  const lineSummaryRaw = lines.map((l) => ({
     id: l.id, name: l.name,
     qty: l.items.length,
     weight: l.items.reduce((s, it) => s + (it.weight ?? 0), 0),
     hasNull: l.items.some((it) => it.weight === null),
   }));
+  const lineSummary = recapSortAsc === null ? lineSummaryRaw
+    : [...lineSummaryRaw].sort((a,b) => recapSortAsc
+        ? a.name.localeCompare(b.name)
+        : b.name.localeCompare(a.name));
   const totalQty    = lineSummary.reduce((s, l) => s + l.qty, 0);
   const totalWeight = lineSummary.reduce((s, l) => s + l.weight, 0);
   const anyNull     = lineSummary.some((l) => l.hasNull);
+
+  const allItems = lines.flatMap((l) => l.items);
+  const wagonSummaryRaw = wagons.map((w) => {
+    const items = allItems.filter((it) => it.wagonId === w.id);
+    return {
+      ...w,
+      scanned: items.length,
+      weight:  items.reduce((s, it) => s + (it.weight ?? 0), 0),
+      hasNull: items.some((it) => it.weight === null),
+      done:    w.coilCount > 0 && items.length >= w.coilCount,
+    };
+  });
+  const wagonSummary = wagonSortAsc === null ? wagonSummaryRaw
+    : [...wagonSummaryRaw].sort((a,b) => wagonSortAsc
+        ? a.serial.localeCompare(b.serial)
+        : b.serial.localeCompare(a.serial));
+  const existingPorts = [...new Set(wagons.map((w) => w.port).filter((p): p is string => !!p))];
+  const existingDechargements = [...new Set(allItems.map((it) => it.dechargement).filter((d): d is string => !!d))];
 
   /* ── Export ──────────────────────────────────────────────────── */
   const exportXLSX = () => {
@@ -537,22 +606,30 @@ export default function Hangar({ dark }: HangarProps) {
 
         {/* ── Camera column ───────────────────────────────────── */}
         <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch", width:"100%", flexShrink: 0 }}>
+
           {/* Video + A–Z letter sidebar */}
           <div style={{ display:"flex", gap:4, alignItems:"stretch", width:"100%" }}>
             {/* A–Z column */}
-            <div style={{ display:"flex", flexDirection:"column", gap:2, flexShrink:0 }}>
+            <div style={{ position:"relative", display:"flex", flexDirection:"column", gap:2, flexShrink:0, overflow:"visible" }}>
               {Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map((letter) => {
                 const isActiveLetter = selectedLine?.name === letter;
                 const hasLine = lines.some((l) => l.name === letter);
+                const isHov = hoveredLetter === letter;
                 return (
                   <button key={letter}
                     onClick={() => selectOrCreateLetter(letter)}
+                    onMouseEnter={() => setHoveredLetter(letter)}
+                    onMouseLeave={() => setHoveredLetter(null)}
                     title={hasLine ? `Sélectionner la ligne "${letter}"` : `Créer et sélectionner la ligne "${letter}"`}
                     style={{
                       fontFamily:MONO, fontSize: isMobile ? 13 : 9, fontWeight: isActiveLetter ? 700 : 600,
                       width: isMobile ? 32 : 22, flex:1,
                       padding:0, lineHeight:1, borderRadius:3, cursor:"pointer",
-                      background: isActiveLetter ? accent+"33" : (hasLine ? (dark?"#1e1e1e":"#e8e8e8") : "transparent"),
+                      position:"relative",
+                      zIndex: isHov ? 20 : 1,
+                      transform: isHov ? "scale(2.5) translateX(28%)" : "scale(1)",
+                      transition:"transform 0.12s",
+                      background: isActiveLetter ? accent+"33" : (hasLine ? (isHov ? surface : (dark?"#1e1e1e":"#e8e8e8")) : (isHov ? surface : "transparent")),
                       border: isActiveLetter ? `1px solid ${accent}` : `1px solid ${border}`,
                       color: isActiveLetter ? accent : (hasLine ? text : muted),
                     }}>
@@ -560,6 +637,26 @@ export default function Hangar({ dark }: HangarProps) {
                   </button>
                 );
               })}
+              {/* Déchargement hover overlay */}
+              {hoveredLetter && (() => {
+                const hovLine = lines.find((l) => l.name === hoveredLetter);
+                const dechs = [...new Set((hovLine?.items ?? []).map((it) => it.dechargement).filter((d): d is string => !!d))];
+                if (dechs.length === 0) return null;
+                return (
+                  <div style={{ position:"absolute", left:"calc(100% + 8px)", top:0,
+                    background:surface, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
+                    borderRadius:6, padding:"7px 10px", zIndex:30,
+                    minWidth:130, pointerEvents:"none",
+                    boxShadow:"0 4px 20px rgba(0,0,0,0.35)" }}>
+                    <div style={{ fontSize:9, color:muted, textTransform:"uppercase",
+                      letterSpacing:"0.1em", marginBottom:5 }}>Déchargements · {hoveredLetter}</div>
+                    {dechs.map((d) => (
+                      <div key={d} style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 10,
+                        color:dark?"#86efac":"#166534", fontWeight:700 }}>{d}</div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             {/* Camera frame */}
             <div style={{ position:"relative", borderRadius:8, overflow:"hidden",
@@ -585,6 +682,68 @@ export default function Hangar({ dark }: HangarProps) {
                   </div>
                 </div>
               )}
+            </div>
+            {/* Wagon column (right) */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, flexShrink:0, width: isMobile ? 44 : 32, overflow:"visible" }}>
+              {Array.from({length:26}).map((_, idx) => {
+                const w = wagons[idx] as (typeof wagons)[number] | undefined;
+                if (!w) {
+                  if (idx === wagons.length) {
+                    return (
+                      <button key="add"
+                        onClick={() => { setAddingWagon(true); setEditingWagonId(null); setWagonSerial(""); setWagonCoils(""); }}
+                        onMouseEnter={() => setHoveredWagonBtn("add")}
+                        onMouseLeave={() => setHoveredWagonBtn(null)}
+                        title="Ajouter un wagon"
+                        style={{ fontFamily:MONO, fontSize: isMobile ? 14 : 10, flex:1,
+                          padding:0, lineHeight:1, borderRadius:3, cursor:"pointer", position:"relative",
+                          zIndex: hoveredWagonBtn==="add" ? 20 : 1,
+                          transform: hoveredWagonBtn==="add" ? "scale(2.6) translateX(-28%)" : "scale(1)",
+                          transition:"transform 0.12s",
+                          background: hoveredWagonBtn==="add" ? surface : "transparent",
+                          border:`1px dashed ${border}`, color:muted }}>+</button>
+                    );
+                  }
+                  return <div key={`empty-${idx}`} style={{ flex:1, minHeight:0 }} />;
+                }
+                const isSel = w.id === selectedWagonId;
+                const sc = allItems.filter((it) => it.wagonId === w.id).length;
+                const done = w.coilCount > 0 ? sc >= w.coilCount : false;
+                const shortSerial = w.serial.length > 5 ? w.serial.slice(0,4)+"…" : w.serial;
+                return (
+                  <button key={w.id}
+                    onClick={() => {
+                      if (isSel) { startEditWagon(w); setAddingWagon(false); }
+                      else { setSelectedWagonId(w.id); setEditingWagonId(null); setAddingWagon(false); }
+                    }}
+                    onMouseEnter={() => setHoveredWagonBtn(w.id)}
+                    onMouseLeave={() => setHoveredWagonBtn(null)}
+                    title={`${w.serial} — ${sc}${w.coilCount > 0 ? `/${w.coilCount}` : ""} coil(s)${isSel ? " · cliquer pour modifier" : ""}`}
+                    style={{
+                      fontFamily:MONO, fontWeight: isSel ? 700 : 600,
+                      width:"100%", flex:1,
+                      padding:"1px 2px", lineHeight:1.1, borderRadius:3, cursor:"pointer",
+                      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
+                      position:"relative",
+                      zIndex: hoveredWagonBtn===w.id ? 20 : 1,
+                      transform: hoveredWagonBtn===w.id ? "scale(2.5) translateX(-26%)" : "scale(1)",
+                      transition:"transform 0.12s",
+                      background: isSel ? accent+"33" : done ? (dark?"#0a200f":"#dcfce7") : (hoveredWagonBtn===w.id ? surface : (dark?"#1e1e1e":"#e8e8e8")),
+                      border: isSel ? `1px solid ${accent}` : done ? `1px solid ${dark?"#4ade80":"#16a34a"}` : `1px solid ${border}`,
+                      color: isSel ? accent : done ? (dark?"#86efac":"#166534") : text,
+                    }}>
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%",
+                      whiteSpace:"nowrap", display:"block", fontSize: isMobile ? 11 : 8 }}>
+                      {shortSerial}
+                    </span>
+                    <span style={{ fontSize: isMobile ? 10 : 7,
+                      color: done?(dark?"#86efac":"#166534"):(sc>0?accent:muted),
+                      fontWeight:done?700:400, lineHeight:1 }}>
+                      {sc}{w.coilCount > 0 ? `/${w.coilCount}` : ""}{done?"✓":""}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -642,12 +801,37 @@ export default function Hangar({ dark }: HangarProps) {
             );
           })()}
 
+          {/* Scan feedback */}
+          {lastScan && (() => {
+            const scanItem = lastScan.status==="added" ? (selectedLine?.items ?? []).find((it) => it.code === lastScan.code) : undefined;
+            const scanWagon = scanItem?.wagonId ? wagons.find((w) => w.id === scanItem.wagonId) : undefined;
+            return (
+            <div style={{ padding:"6px 10px", borderRadius:6, width:"100%", boxSizing:"border-box" as const,
+              display:"flex", alignItems:"center", gap:8, flexWrap:"wrap",
+              background: lastScan.status==="added"?(dark?"#0a1f0f":"#f0fdf4"):(dark?"#1c1000":"#fffbeb"),
+              border:`1px solid ${lastScan.status==="added"?accent:amber}` }}>
+              <span style={{fontSize:9,color:muted,textTransform:"uppercase",letterSpacing:"0.1em",flexShrink:0}}>Dernière réf.</span>
+              <span style={{fontFamily:MONO,fontSize: isMobile ? 13 : 11,fontWeight:700,color:text,wordBreak:"break-all",flex:1,minWidth:0}}>{lastScan.code}</span>
+              {lastScan.status==="added"    && <span style={{fontSize: isMobile ? 12 : 10,color:accent,flexShrink:0}}>✓ Ajouté{qaaPosition ? ` → ${qaaPosition}` : ""}</span>}
+              {lastScan.status==="duplicate"&& <span style={{fontSize: isMobile ? 12 : 10,color:amber,flexShrink:0}}>⚠ déjà présent</span>}
+              {lastScan.status==="posdup"   && <span style={{fontSize: isMobile ? 12 : 10,color:amber,flexShrink:0}}>⚠ pos. "{qaaPosition}" occupée</span>}
+              {lastScan.status==="noline"   && <span style={{fontSize: isMobile ? 12 : 10,color:amber,flexShrink:0}}>⚠ aucune ligne</span>}
+              {lastScan.status==="unknown"  && <span style={{fontSize: isMobile ? 12 : 10,color:amber,flexShrink:0}}>? absent du fichier Excel</span>}
+              {scanItem && scanItem.weight !== null && <span style={{fontSize: isMobile ? 11 : 9,color:text,flexShrink:0,fontFamily:MONO}}>{fmtW(scanItem.weight)} kg</span>}
+              {scanItem?.position && <span style={{fontSize: isMobile ? 11 : 9,color:accent,flexShrink:0,fontFamily:MONO,fontWeight:700}}>{selectedLine?.name}{String(parseInt(scanItem.position)).padStart(2,"0")}</span>}
+              {scanItem?.dechargement && <span style={{fontSize: isMobile ? 11 : 9,color:dark?"#86efac":"#166534",flexShrink:0,fontWeight:700}}>{scanItem.dechargement}</span>}
+              {scanWagon && <span style={{fontSize: isMobile ? 11 : 9,fontFamily:MONO,padding:"1px 6px",borderRadius:8,flexShrink:0,background:accent+"22",border:`1px solid ${accent}`,color:accent}}>{scanWagon.serial}</span>}
+            </div>
+            );
+          })()}
+
           {/* Row 3 : position slots 1–51 */}
           {(() => {
             return (
-              <div>
+              <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
+                background: dark?"#071a0b":"#f0fdf4", padding:"8px 10px" }}>
                 <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:5 }}>
-                  Emplacement
+                  PAR EMPLACEMENT
                   {qaaPosition && <span style={{color:accent, fontWeight:700, marginLeft:6}}>→ {qaaPosition}</span>}
                 </div>
 {(() => {
@@ -661,7 +845,10 @@ export default function Hangar({ dark }: HangarProps) {
                     const isOcc = occupiedPositions.has(s);
                     const isVide = videPositions.has(s);
                     return (
-                      <button key={s} disabled={isOcc && !isSel}
+                      <div key={s} style={{ position:"relative", display:"inline-block" }}
+                        onMouseEnter={() => setHoveredChip(s)}
+                        onMouseLeave={() => setHoveredChip(null)}>
+                      <button disabled={isOcc && !isSel}
                         onClick={() => setQaaPosition(isSel ? "" : s)}
                         title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
                         style={{
@@ -679,9 +866,14 @@ export default function Hangar({ dark }: HangarProps) {
                           fontWeight: isSel ? 700 : 400,
                           opacity: isOcc && !isSel ? 0.75 : 1,
                         }}>{s}</button>
+                      </div>
                     );
                   };
+                  const hovItemGlobal = hoveredChip
+                    ? (selectedLine?.items ?? []).find((it) => it.position === hoveredChip && occupiedPositions.has(hoveredChip))
+                    : undefined;
                   return (
+                    <>
                     <div style={{ overflowX:"auto", paddingBottom:4 }}>
                       <div style={{ display:"inline-block", minWidth:"max-content" }}>
                         <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>
@@ -692,6 +884,27 @@ export default function Hangar({ dark }: HangarProps) {
                         </div>
                       </div>
                     </div>
+                    {hovItemGlobal && (
+                      <div style={{ marginTop:6, borderRadius:5,
+                        background:surface, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
+                        padding:"6px 10px", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
+                        <span style={{ fontSize:9, color:muted, textTransform:"uppercase", letterSpacing:"0.1em", flexShrink:0 }}>
+                          {selectedLine?.name}{String(parseInt(hoveredChip!)).padStart(2,"0")}
+                        </span>
+                        <span style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 10, color:text, fontWeight:700, flex:1, minWidth:0, wordBreak:"break-all" }}>
+                          {hovItemGlobal.code.startsWith("∅") ? "∅ vide" : hovItemGlobal.code}
+                        </span>
+                        <span style={{ fontSize: isMobile ? 11 : 9, color: hovItemGlobal.weight===null?amber:text, flexShrink:0 }}>
+                          {hovItemGlobal.weight !== null ? `${fmtW(hovItemGlobal.weight)} kg` : "? kg"}
+                        </span>
+                        {hovItemGlobal.dechargement && (
+                          <span style={{ fontSize: isMobile ? 11 : 9, color:dark?"#86efac":"#166534", fontWeight:700, flexShrink:0 }}>
+                            {hovItemGlobal.dechargement}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    </>
                   );
                 })()}
               </div>
@@ -702,26 +915,11 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ fontSize: isMobile ? 14 : 11, color:"#ef4444", padding:"7px 12px",
               background:dark?"#2d0a0a":"#fee2e2", borderRadius:4, border:"1px solid #ef4444" }}>⚠ {cameraError}</div>
           )}
-
-          {/* Scan feedback */}
-          {lastScan && (
-            <div style={{ padding:"9px 12px", borderRadius:6, width:"100%", boxSizing:"border-box" as const,
-              background: lastScan.status==="added"?(dark?"#0a1f0f":"#f0fdf4"):(dark?"#1c1000":"#fffbeb"),
-              border:`1px solid ${lastScan.status==="added"?accent:amber}` }}>
-              <div style={{fontSize:10,color:muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>Dernière réf.</div>
-              <div style={{fontSize:12,fontWeight:700,color:text,wordBreak:"break-all",marginBottom:3}}>{lastScan.code}</div>
-              {lastScan.status==="added"    && <div style={{fontSize:11,color:accent}}>✓ Ajouté{qaaPosition ? ` → ${qaaPosition}` : ""}</div>}
-              {lastScan.status==="duplicate"&& <div style={{fontSize:11,color:amber}}>⚠ Code déjà présent dans cette ligne</div>}
-              {lastScan.status==="posdup"   && <div style={{fontSize:11,color:amber}}>⚠ Position "{qaaPosition}" déjà occupée</div>}
-              {lastScan.status==="noline"   && <div style={{fontSize:11,color:amber}}>⚠ Aucune ligne sélectionnée</div>}
-              {lastScan.status==="unknown"  && <div style={{fontSize:11,color:amber}}>? Réf. absente du fichier Excel → saisie manuelle</div>}
-            </div>
-          )}
         </div>
 
         {/* ── Detail of selected line ──────────────────────────── */}
         {selectedLine && (
-          <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ flex:1, minWidth:0, width:"100%" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div style={{ fontSize:12, fontWeight:700, color:accent }}>
                 {selectedLine.name}
@@ -729,73 +927,161 @@ export default function Hangar({ dark }: HangarProps) {
                   {selectedLine.items.length} art. · {fmtW(selectedLine.items.reduce((s,it)=>s+(it.weight??0),0))} kg
                 </span>
               </div>
-              <button onClick={()=>clearLine(selectedLine.id)}
+              <button onClick={() => setClearConfirmId(selectedLine.id)}
                 style={{ ...btnBase, background:"transparent", border:`1px solid ${danger}`, color:danger }}>Vider</button>
             </div>
             {selectedLine.items.length === 0 ? (
               <div style={{ fontSize:11, color:muted }}>Aucun article — scannez ou saisissez une réf.</div>
             ) : (
-              <div style={{ maxHeight:380, overflowY:"auto" }}>
-                <table style={{ borderCollapse:"collapse", width:"100%" }}>
-                  {(() => {
-                    const showPos = selectedLine.items.some((it) => it.position);
-                    return (
-                      <>
-                      <thead>
-                        <tr>
-                          <th style={thS}>#</th>
-                          <th style={thS}>Réf.</th>
-                          <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
-                          {showPos && <th style={thS}>Pos.</th>}
-                          <th style={thS}>Source</th>
-                          <th style={thS}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedLine.items.map((it, i) => {
-                          const isVide = it.code.startsWith("∅");
-                          return (
-                          <tr key={it.code}>
-                            <td style={tdS()}><span style={{color: muted}}>{i+1}</span></td>
-                            <td style={{...tdS(), color: text}}>{isVide ? "∅ vide" : it.code}</td>
-                            <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
-                            {showPos && <td style={{...tdS(), fontFamily:MONO, fontWeight:700, color: it.position?accent:muted}}>{it.position ? `${selectedLine.name}${String(parseInt(it.position)).padStart(2,"0")}` : "—"}</td>}
-                            <td style={tdS()}>
-                              <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
-                                background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
-                                border:`1px solid ${it.fromExcel?accent:amber}`,
-                                color: it.fromExcel?accent:amber }}>
-                                {isVide ? "∅" : (it.fromExcel?"Excel":"Manuel")}
-                              </span>
-                            </td>
-                            <td style={tdS()}>
-                              <button onClick={()=>removeItem(selectedLine.id, it.code)}
-                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color: muted, fontSize:12}}>×</button>
-                            </td>
-                          </tr>
-                          );
-                        })}
-                      </tbody>
-                      </>
-                    );
-                  })()}
-                </table>
-              </div>
+              <>
+                {/* collapsible header */}
+                <div onClick={() => setItemsOpen(v => !v)}
+                  style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", userSelect:"none" as const,
+                    marginBottom:4, padding:"3px 0" }}>
+                  <span style={{ fontSize: isMobile ? 12 : 9, color:muted, textTransform:"uppercase", letterSpacing:"0.1em", flex:1 }}>
+                    {selectedLine.items.length} article{selectedLine.items.length>1?"s":""}
+                  </span>
+                  <span style={{ fontSize:9, color:muted }}>{itemsOpen ? "▲" : "▼"}</span>
+                </div>
+                {itemsOpen && (
+                  <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
+                    background: dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
+                  <div style={{ maxHeight:380, overflowY:"auto" }}>
+                    <table style={{ borderCollapse:"collapse", width:"100%" }}>
+                      {(() => {
+                        const showPos = selectedLine.items.some((it) => it.position);
+                        const showDechargement = selectedLine.items.some((it) => it.dechargement);
+                        const showWagon = wagons.length > 0;
+                        return (
+                          <>
+                          <thead>
+                            <tr>
+                              <th style={thS}>#</th>
+                              {showWagon && <th style={thS}>Wagon</th>}
+                              <th style={thS}>Réf.</th>
+                              <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
+                              {showPos && <th style={thS}>Pos.</th>}
+                              {showDechargement && <th style={thS}>Déchargement</th>}
+                              <th style={thS}>Source</th>
+                              <th style={thS}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedLine.items.map((it, i) => {
+                              const isVide = it.code.startsWith("∅");
+                              const wag = showWagon ? wagons.find((w) => w.id === it.wagonId) : undefined;
+                              return (
+                              <tr key={it.code}>
+                                <td style={tdS()}><span style={{color: muted}}>{i+1}</span></td>
+                                {showWagon && (
+                                  <td style={tdS()}>
+                                    {wag
+                                      ? <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
+                                          background: accent+"22", border:`1px solid ${accent}`, color:accent,
+                                          fontFamily:MONO, whiteSpace:"nowrap" }}>{wag.serial}</span>
+                                      : <span style={{ color:muted }}>—</span>}
+                                  </td>
+                                )}
+                                <td style={{...tdS(), color: text}}>{isVide ? "∅ vide" : it.code}</td>
+                                <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
+                                {showPos && <td style={{...tdS(), fontFamily:MONO, fontWeight:700, color: it.position?accent:muted}}>{it.position ? `${selectedLine.name}${String(parseInt(it.position)).padStart(2,"0")}` : "—"}</td>}
+                                {showDechargement && <td style={{...tdS(), color: it.dechargement?text:muted}}>{it.dechargement ?? "—"}</td>}
+                                <td style={tdS()}>
+                                  <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
+                                    background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
+                                    border:`1px solid ${it.fromExcel?accent:amber}`,
+                                    color: it.fromExcel?accent:amber }}>
+                                    {isVide ? "∅" : (it.fromExcel?"Excel":"Manuel")}
+                                  </span>
+                                </td>
+                                <td style={tdS()}>
+                                  <button onClick={()=>removeItem(selectedLine.id, it.code)}
+                                    style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color: muted, fontSize:12}}>×</button>
+                                </td>
+                              </tr>
+                              );
+                            })}
+                          </tbody>
+                          </>
+                        );
+                      })()}
+                    </table>
+                  </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
       </div>
 
+      {/* ── Wagons summary ──────────────────────────────────────── */}
+      {wagons.length > 0 && (
+        <div style={{ marginTop:24, maxWidth:"100%" }}>
+          <div onClick={() => setWagonSumOpen(v => !v)}
+            style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", userSelect:"none" as const, marginBottom: wagonSumOpen ? 10 : 0 }}>
+            <span style={{ fontSize: isMobile ? 13 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", flex:1 }}>Par wagon</span>
+            <span style={{ fontSize:9, color:muted }}>{wagonSumOpen ? "▲" : "▼"}</span>
+          </div>
+          {wagonSumOpen && (
+            <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`, background:dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
+            <table style={{ borderCollapse:"collapse", width:"100%" }}>
+            <thead>
+              <tr style={{ background:dark?"#1a0e00":"#fff0ee" }}>
+                <th style={{...thS, cursor:"pointer", userSelect:"none" as const}}
+                  onDoubleClick={() => setWagonSortAsc(v => v === null ? true : v === true ? false : null)}
+                  title="Double-clic pour trier">
+                  N° série{wagonSortAsc === true ? " ▲" : wagonSortAsc === false ? " ▼" : ""}
+                </th>
+                <th style={thS}>Port</th>
+                <th style={{...thS, textAlign:"right"}}>Attendus</th>
+                <th style={{...thS, textAlign:"right"}}>Scannés</th>
+                <th style={{...thS, textAlign:"right"}}>Restants</th>
+                <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wagonSummary.map((w) => (
+                <tr key={w.id}
+                  onClick={() => setSelectedWagonId(w.id === selectedWagonId ? null : w.id)}
+                  style={{ cursor:"pointer", background: w.id===selectedWagonId ? accent+"28" : (w.done ? (dark?"#0a1a0a":"#f0fff0") : undefined) }}>
+                  <td style={{...tdS(), fontWeight:700, color: w.id===selectedWagonId ? accent : text}}>{w.serial}</td>
+                  <td style={tdS()}>{w.port ?? <span style={{color:muted}}>—</span>}</td>
+                  <td style={tdS(true)}>{w.coilCount > 0 ? w.coilCount : "∞"}</td>
+                  <td style={{...tdS(true), color: w.done ? (dark?"#86efac":"#166534") : (w.scanned > 0 ? accent : muted), fontWeight: w.done ? 700 : 400}}>
+                    {w.scanned}{w.done ? " ✓" : ""}
+                  </td>
+                  <td style={{...tdS(true), color: w.coilCount > 0 && w.coilCount - w.scanned > 0 ? (dark?"#fca5a5":"#dc2626") : muted}}>
+                    {w.coilCount > 0 ? Math.max(0, w.coilCount - w.scanned) : "–"}
+                  </td>
+                  <td style={{...tdS(true), color: w.hasNull ? amber : text}}>{fmtW(w.weight)}{w.hasNull?" *":""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+          )}
+        </div>
+      )}
+
       {/* ── Summary table ───────────────────────────────────────── */}
       {lines.length > 0 && (
         <div style={{ marginTop:24, maxWidth:"100%" }}>
-          <div style={{ fontSize: isMobile ? 13 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:10 }}>
-            Récapitulatif
+          <div onClick={() => setRecapOpen(v => !v)}
+            style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", userSelect:"none" as const, marginBottom: recapOpen ? 10 : 0 }}>
+            <span style={{ fontSize: isMobile ? 13 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", flex:1 }}>Récapitulatif</span>
+            <span style={{ fontSize:9, color:muted }}>{recapOpen ? "▲" : "▼"}</span>
           </div>
-          <table style={{ borderCollapse:"collapse", width:"100%", background:surface, borderRadius:6, overflow:"hidden" }}>
+          {recapOpen && (
+            <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`, background:dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
+            <table style={{ borderCollapse:"collapse", width:"100%" }}>
             <thead>
               <tr style={{ background:dark?"#1a1a1a":"#f0f0f0" }}>
-                <th style={thS}>Ligne</th>
+                <th style={{...thS, cursor:"pointer", userSelect:"none" as const}}
+                  onDoubleClick={() => setRecapSortAsc(v => v === null ? true : v === true ? false : null)}
+                  title="Double-clic pour trier">
+                  Ligne{recapSortAsc === true ? " ▲" : recapSortAsc === false ? " ▼" : ""}
+                </th>
                 <th style={{...thS, textAlign:"right"}}>Qté</th>
                 <th style={{...thS, textAlign:"right"}}>Poids total (kg)</th>
               </tr>
@@ -824,7 +1110,125 @@ export default function Hangar({ dark }: HangarProps) {
               </tr>
             </tfoot>
           </table>
-          {anyNull && <div style={{ fontSize: isMobile ? 13 : 10, color:amber, marginTop:6 }}>* Poids inconnu pour certains articles (non saisi)</div>}
+          </div>
+          )}
+          {recapOpen && anyNull && <div style={{ fontSize: isMobile ? 13 : 10, color:amber, marginTop:6 }}>* Poids inconnu pour certains articles (non saisi)</div>}
+        </div>
+      )}
+
+      {/* ── Vider confirm modal ──────────────────────────────────── */}
+      {clearConfirmId && (() => {
+        const lineName = lines.find((l) => l.id === clearConfirmId)?.name ?? "?";
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex",
+            alignItems:"center", justifyContent:"center", zIndex:1000 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setClearConfirmId(null); }}>
+            <div style={{ background:surface, border:`2px solid ${danger}`, borderRadius:10,
+              padding:"24px 20px", width:"min(340px, calc(100vw - 32px))", fontFamily:MONO,
+              boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
+              <div style={{ fontSize: isMobile ? 16 : 13, fontWeight:700, color:danger, marginBottom:10 }}>Vider la ligne {lineName} ?</div>
+              <div style={{ fontSize: isMobile ? 13 : 11, color:muted, marginBottom:20 }}>
+                Tous les articles de cette ligne seront supprimés définitivement.
+              </div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                <button onClick={() => setClearConfirmId(null)}
+                  style={{ ...btnBase, padding: isMobile ? "10px 16px" : "7px 12px", background:"transparent",
+                    border:`1px solid ${border}`, color:muted }}>Annuler</button>
+                <button onClick={() => { clearLine(clearConfirmId!); setClearConfirmId(null); }}
+                  style={{ ...btnBase, padding: isMobile ? "10px 16px" : "7px 12px", background:danger+"22",
+                    border:`1px solid ${danger}`, color:danger, fontWeight:700 }}>Vider</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Wagon add/edit modal ────────────────────────────────── */}
+      {(addingWagon || editingWagonId) && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex",
+          alignItems:"center", justifyContent:"center", zIndex:1000 }}
+          onClick={(e) => { if (e.target === e.currentTarget) cancelEditWagon(); }}>
+          <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:10,
+            padding:"24px 20px", width:"min(380px, calc(100vw - 32px))", fontFamily:MONO,
+            boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
+
+            <div style={{ fontSize: isMobile ? 14 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase",
+              letterSpacing: isMobile ? 0 : "0.12em", marginBottom:16 }}>
+              {editingWagonId ? "Modifier le wagon" : "Nouveau wagon"}
+            </div>
+
+            {/* N° série */}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:4 }}>N° série *</div>
+              <input value={wagonSerial} onChange={(e) => setWagonSerial(e.target.value)}
+                onKeyDown={(e) => { if(e.key==="Escape") cancelEditWagon(); }}
+                placeholder="ex : W-0042" autoFocus
+                style={{ width:"100%", boxSizing:"border-box" as const,
+                  fontFamily:MONO, fontSize: isMobile ? 15 : 12,
+                  padding: isMobile ? "10px 12px" : "7px 10px", borderRadius:5,
+                  background:dark?"#0f0800":"#fff",
+                  border:`1px solid ${wagonSerial.trim() ? accent : border}`, color:text, outline:"none" }} />
+            </div>
+
+            {/* Coils */}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:4 }}>Coils attendus <span style={{fontWeight:400}}>(0 = illimité)</span></div>
+              <input value={wagonCoils} onChange={(e) => setWagonCoils(e.target.value.replace(/[^0-9]/g,""))}
+                onKeyDown={(e) => { if(e.key==="Escape") cancelEditWagon(); }}
+                placeholder="ex : 24"
+                style={{ width:"100%", boxSizing:"border-box" as const,
+                  fontFamily:MONO, fontSize: isMobile ? 15 : 12,
+                  padding: isMobile ? "10px 12px" : "7px 10px", borderRadius:5,
+                  background:dark?"#0f0800":"#fff", border:`1px solid ${border}`, color:text, outline:"none" }} />
+            </div>
+
+            {/* Port */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:4 }}>Port <span style={{fontWeight:400}}>(optionnel)</span></div>
+              <input value={wagonPort} onChange={(e) => setWagonPort(e.target.value)}
+                list="wagon-ports-list"
+                onKeyDown={(e) => { if(e.key==="Escape") cancelEditWagon(); }}
+                placeholder={existingPorts.length > 0 ? "Choisir ou saisir…" : "ex : DUNKERQUE"}
+                style={{ width:"100%", boxSizing:"border-box" as const,
+                  fontFamily:MONO, fontSize: isMobile ? 15 : 12,
+                  padding: isMobile ? "10px 12px" : "7px 10px", borderRadius:5,
+                  background:dark?"#0f0800":"#fff", border:`1px solid ${wagonPort.trim() ? accent : border}`,
+                  color:text, outline:"none" }} />
+              <datalist id="wagon-ports-list">
+                {existingPorts.map((p) => <option key={p} value={p} />)}
+              </datalist>
+              {existingPorts.length > 0 && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
+                  {existingPorts.map((p) => (
+                    <button key={p} onClick={() => setWagonPort(p)}
+                      style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 9, padding:"2px 8px",
+                        borderRadius:10, cursor:"pointer", border:`1px solid ${wagonPort===p?accent:border}`,
+                        background: wagonPort===p ? accent+"22" : "transparent",
+                        color: wagonPort===p ? accent : muted }}>{p}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              {editingWagonId && (
+                <button onClick={() => { deleteWagon(editingWagonId!); cancelEditWagon(); }}
+                  style={{ ...btnBase, padding: isMobile ? "10px 16px" : "7px 12px", background:"transparent",
+                    border:`1px solid ${danger}`, color:danger, marginRight:"auto" }}>Supprimer</button>
+              )}
+              <button onClick={cancelEditWagon}
+                style={{ ...btnBase, padding: isMobile ? "10px 16px" : "7px 12px", background:"transparent",
+                  border:`1px solid ${border}`, color:muted }}>Annuler</button>
+              <button onClick={addWagon}
+                disabled={!wagonSerial.trim() || wagonCoils.trim() === ""}
+                style={{ ...btnBase, padding: isMobile ? "10px 16px" : "7px 12px", background:accent+"22",
+                  border:`1px solid ${accent}`, color:accent, fontWeight:700,
+                  opacity:(!wagonSerial.trim() || wagonCoils.trim() === "") ? 0.4 : 1 }}>
+                {editingWagonId ? "Enregistrer" : "Créer"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -908,6 +1312,33 @@ export default function Hangar({ dark }: HangarProps) {
                   padding: isMobile ? "12px 10px" : "8px 10px", borderRadius:5,
                   background:bg, border:`1px solid ${pending.weight.trim()==="" ? "#ef4444" : border}`, color:text, outline:"none",
                   boxSizing:"border-box" as const }} />
+            </div>
+            {/* Déchargement */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Déchargement <span style={{fontWeight:400}}>(optionnel)</span></div>
+              <input value={pending.dechargement}
+                onChange={(e) => setPending({ ...pending, dechargement: e.target.value })}
+                list="pending-dechargement-list"
+                onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
+                placeholder={existingDechargements.length > 0 ? "Choisir ou saisir…" : "ex : PORT-SUD"}
+                style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 15 : 12,
+                  padding: isMobile ? "10px 10px" : "7px 10px", borderRadius:5,
+                  background:bg, border:`1px solid ${pending.dechargement.trim() ? accent : border}`, color:text, outline:"none",
+                  boxSizing:"border-box" as const }} />
+              <datalist id="pending-dechargement-list">
+                {existingDechargements.map((d) => <option key={d} value={d} />)}
+              </datalist>
+              {existingDechargements.length > 0 && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
+                  {existingDechargements.map((d) => (
+                    <button key={d} onClick={() => setPending({ ...pending, dechargement: d })}
+                      style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 9, padding:"2px 8px",
+                        borderRadius:10, cursor:"pointer", border:`1px solid ${pending.dechargement===d?accent:border}`,
+                        background: pending.dechargement===d ? accent+"22" : "transparent",
+                        color: pending.dechargement===d ? accent : muted }}>{d}</button>
+                  ))}
+                </div>
+              )}
             </div>
             {(() => {
               const missingPos = pending.position === "";
