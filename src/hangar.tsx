@@ -78,9 +78,7 @@ export default function Hangar({ dark }: HangarProps) {
   /* ── Lines ───────────────────────────────────────────────────── */
   const [lines,       setLines]       = useState<HangarLine[]>(() => LS.get("hgr_lines2", []));
   const [selectedId,  setSelectedId]  = useState<string | null>(() => LS.get("hgr_selectedId", null));
-  const [newLineName, setNewLineName] = useState("");
-  const [editingId,   setEditingId]   = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
+
   useEffect(() => { LS.set("hgr_lines2",     lines);      }, [lines]);
   useEffect(() => { LS.set("hgr_selectedId", selectedId); }, [selectedId]);
 
@@ -397,24 +395,19 @@ export default function Hangar({ dark }: HangarProps) {
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
   /* ── Line management ─────────────────────────────────────────── */
-  const createLine = () => {
-    const name = newLineName.trim() || `Ligne ${lines.length + 1}`;
-    const l: HangarLine = { id: newId(), name, items: [] };
-    setLines((p) => [...p, l]); setSelectedId(l.id); setNewLineName("");
-  };
-  const deleteLine = (id: string) => {
-    setLines((p) => p.filter((l) => l.id !== id));
-    if (selectedId === id) setSelectedId(null);
+  const selectOrCreateLetter = (letter: string) => {
+    const existing = lines.find((l) => l.name === letter);
+    if (existing) {
+      setSelectedId(existing.id);
+    } else {
+      const l: HangarLine = { id: newId(), name: letter, items: [] };
+      setLines((p) => [...p, l]);
+      setSelectedId(l.id);
+    }
   };
   const clearLine = (id: string) => setLines((p) => p.map((l) => l.id === id ? { ...l, items: [] } : l));
   const removeItem = (lineId: string, code: string) =>
     setLines((p) => p.map((l) => l.id === lineId ? { ...l, items: l.items.filter((it) => it.code !== code) } : l));
-  const commitRename = () => {
-    if (!editingId) return;
-    const name = editingName.trim();
-    if (name) setLines((p) => p.map((l) => l.id === editingId ? { ...l, name } : l));
-    setEditingId(null); setEditingName("");
-  };
 
   const submitManual = () => {
     const v = manualCode.trim(); if (!v) return;
@@ -542,105 +535,82 @@ export default function Hangar({ dark }: HangarProps) {
 
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexDirection: "column" }}>
 
-        {/* ── Lines panel ─────────────────────────────────────── */}
-        <div style={{ width: "100%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: isMobile ? 13 : 10, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em" }}>
-            Lignes ({lines.length})
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input value={newLineName} onChange={(e) => setNewLineName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createLine()}
-              placeholder="Nom de la ligne…"
-              style={{ flex: 1, fontFamily: MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 10px" : "5px 8px", borderRadius: 4,
-                background: surface, border: `1px solid ${border}`, color: text, outline: "none" }} />
-            <button onClick={createLine}
-              style={{ ...btnBase, background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>+</button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
-            {lines.length === 0 && <div style={{ fontSize: isMobile ? 14 : 11, color: muted }}>Aucune ligne créée</div>}
-            {lines.map((l, lIdx) => {
-              const isActive = l.id === selectedId;
-              const sum = lineSummary.find((s) => s.id === l.id);
-              const lineBg = dark ? LINE_BG_DARK[lIdx % LINE_BG_DARK.length] : LINE_BG_LIGHT[lIdx % LINE_BG_LIGHT.length];
-              return (
-                <div key={l.id} onClick={() => setSelectedId(l.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 5,
-                    background: isActive ? accent+"40" : lineBg,
-                    border: `1px solid ${isActive ? accent : border}`, cursor: "pointer" }}>
-                  {editingId === l.id ? (
-                    <input autoFocus value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key==="Enter") commitRename(); if (e.key==="Escape") setEditingId(null); }}
-                      onBlur={commitRename} onClick={(e) => e.stopPropagation()}
-                      style={{ flex:1, fontFamily:MONO, fontSize: isMobile ? 14 : 11, padding: isMobile ? "6px 6px" : "2px 4px",
-                        background:"transparent", border:`1px solid ${accent}`, color:text, borderRadius:3, outline:"none" }} />
-                  ) : (
-                    <span style={{ flex:1, fontSize: isMobile ? 14 : 11, fontWeight:isActive?700:400,
-                      color:isActive?accent:text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                      {l.name}
-                    </span>
-                  )}
-                  <span style={{ fontSize:9, color:muted, whiteSpace:"nowrap" }}>{sum?.qty} · {fmtW(sum?.weight??0)}</span>
-                  <button onClick={(e)=>{e.stopPropagation();setEditingId(l.id);setEditingName(l.name);}}
-                    style={{...btnBase,padding:"1px 5px",background:"transparent",border:"none",color:muted,fontSize:12}}>✎</button>
-                  <button onClick={(e)=>{e.stopPropagation();deleteLine(l.id);}}
-                    style={{...btnBase,padding:"1px 5px",background:"transparent",border:"none",color:danger,fontSize:12}}>✕</button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {/* ── Camera column ───────────────────────────────────── */}
         <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch", width:"100%", flexShrink: 0 }}>
-          <div style={{ padding:"5px 14px", borderRadius:4, fontSize: isMobile ? 15 : 11, fontWeight:700,
-            background: selectedLine ? accent+"18" : (dark?"#1a1a1a":"#f0f0f0"),
-            border:`1px solid ${selectedLine ? accent : border}`,
-            color: selectedLine ? accent : muted }}>
-            {selectedLine ? `▶ ${selectedLine.name}` : "— Sélectionner une ligne —"}
-          </div>
-
-          {/* Video */}
-          <div style={{ position:"relative", borderRadius:8, overflow:"hidden",
-            border:`2px solid ${flashColor ?? border}`,
-            boxShadow: flashColor ? `0 0 18px ${flashColor}55` : "none",
-            transition:"border-color 0.15s, box-shadow 0.15s",
-            width:"100%", aspectRatio:"4/3", background:dark?"#0a0a0a":"#ddd",
-            display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <video ref={videoRef} playsInline muted
-              style={{ width:"100%", height:"100%", display:cameraOn?"block":"none", objectFit:"cover" }} />
-            {!cameraOn && <div style={{ textAlign:"center", color:muted, fontSize:12 }}><div style={{fontSize:32}}>📷</div><div>Caméra arrêtée</div></div>}
-            {cameraOn && (
-              <div style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
-                <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:170, height:170 }}>
-                  {(["tl","tr","bl","br"] as const).map((c,i) => (
-                    <div key={i} style={{ position:"absolute", width:18, height:18,
-                      ...(c==="tl"?{top:-2,left:-2,borderTop:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderTopLeftRadius:5}:{}),
-                      ...(c==="tr"?{top:-2,right:-2,borderTop:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderTopRightRadius:5}:{}),
-                      ...(c==="bl"?{bottom:-2,left:-2,borderBottom:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderBottomLeftRadius:5}:{}),
-                      ...(c==="br"?{bottom:-2,right:-2,borderBottom:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderBottomRightRadius:5}:{}),
-                    }} />
-                  ))}
+          {/* Video + A–Z letter sidebar */}
+          <div style={{ display:"flex", gap:4, alignItems:"stretch", width:"100%" }}>
+            {/* A–Z column */}
+            <div style={{ display:"flex", flexDirection:"column", gap:2, flexShrink:0 }}>
+              {Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map((letter) => {
+                const isActiveLetter = selectedLine?.name === letter;
+                const hasLine = lines.some((l) => l.name === letter);
+                return (
+                  <button key={letter}
+                    onClick={() => selectOrCreateLetter(letter)}
+                    title={hasLine ? `Sélectionner la ligne "${letter}"` : `Créer et sélectionner la ligne "${letter}"`}
+                    style={{
+                      fontFamily:MONO, fontSize: isMobile ? 13 : 9, fontWeight: isActiveLetter ? 700 : 600,
+                      width: isMobile ? 32 : 22, flex:1,
+                      padding:0, lineHeight:1, borderRadius:3, cursor:"pointer",
+                      background: isActiveLetter ? accent+"33" : (hasLine ? (dark?"#1e1e1e":"#e8e8e8") : "transparent"),
+                      border: isActiveLetter ? `1px solid ${accent}` : `1px solid ${border}`,
+                      color: isActiveLetter ? accent : (hasLine ? text : muted),
+                    }}>
+                    {letter}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Camera frame */}
+            <div style={{ position:"relative", borderRadius:8, overflow:"hidden",
+              border:`2px solid ${flashColor ?? border}`,
+              boxShadow: flashColor ? `0 0 18px ${flashColor}55` : "none",
+              transition:"border-color 0.15s, box-shadow 0.15s",
+              flex:1, aspectRatio:"4/3", background:dark?"#0a0a0a":"#ddd",
+              display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <video ref={videoRef} playsInline muted
+                style={{ width:"100%", height:"100%", display:cameraOn?"block":"none", objectFit:"cover" }} />
+              {!cameraOn && <div style={{ textAlign:"center", color:muted, fontSize:12 }}><div style={{fontSize:32}}>📷</div><div>Caméra arrêtée</div></div>}
+              {cameraOn && (
+                <div style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
+                  <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:170, height:170 }}>
+                    {(["tl","tr","bl","br"] as const).map((c,i) => (
+                      <div key={i} style={{ position:"absolute", width:18, height:18,
+                        ...(c==="tl"?{top:-2,left:-2,borderTop:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderTopLeftRadius:5}:{}),
+                        ...(c==="tr"?{top:-2,right:-2,borderTop:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderTopRightRadius:5}:{}),
+                        ...(c==="bl"?{bottom:-2,left:-2,borderBottom:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderBottomLeftRadius:5}:{}),
+                        ...(c==="br"?{bottom:-2,right:-2,borderBottom:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderBottomRightRadius:5}:{}),
+                      }} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Row 1 : all controls on one line */}
+          {(() => {
+            const canScan = !!selectedId && !!qaaPosition;
+            const disabledStyle: React.CSSProperties = { opacity: 0.35, pointerEvents:"none" as const, cursor:"not-allowed" as const };
+            return (
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
             <button onClick={cameraOn ? stopCamera : startCamera}
+              disabled={!canScan && !cameraOn}
               style={{ ...btnBase, fontSize: isMobile ? 15 : 12, padding: isMobile ? "12px 20px" : "8px 16px",
                 flexShrink:0,
                 background: cameraOn?(dark?"#2d0a0a":"#fee2e2"):(dark?"#0a200f":"#dcfce7"),
                 border:`1px solid ${cameraOn?"#ef4444":accent}`,
-                color: cameraOn?"#ef4444":accent, fontWeight:700 }}>
+                color: cameraOn?"#ef4444":accent, fontWeight:700,
+                ...(!canScan && !cameraOn ? disabledStyle : {}) }}>
               {cameraOn ? "⏹ Arrêter" : "▶ Caméra"}
             </button>
             <button onClick={addNullItem}
+              disabled={!canScan}
               title="Ajouter un emplacement vide (sans référence)"
               style={{ ...btnBase, fontSize: isMobile ? 14 : 11, padding: isMobile ? "12px 16px" : "8px 13px",
                 flexShrink:0,
-                background: "transparent", border:`1px solid ${muted}`, color: muted }}>
+                background: "transparent", border:`1px solid ${muted}`, color: muted,
+                ...(!canScan ? disabledStyle : {}) }}>
               ∅ vide
             </button>
             {cameraOn && (
@@ -657,15 +627,20 @@ export default function Hangar({ dark }: HangarProps) {
               style={{ width: isMobile ? 90 : 70, flexShrink:0, accentColor:accent }} />
             <span style={{ fontSize: isMobile ? 12 : 10, color:text, whiteSpace:"nowrap", flexShrink:0 }}>{(scanDelay/1000).toFixed(1)}s</span>
             <input value={manualCode} onChange={(e)=>setManualCode(e.target.value)}
-              onKeyDown={(e)=>e.key==="Enter"&&submitManual()}
-              placeholder="Saisie manuelle…"
+              onKeyDown={(e)=>e.key==="Enter"&&canScan&&submitManual()}
+              disabled={!canScan}
+              placeholder={canScan ? "Saisie manuelle…" : "Sélectionner ligne + emplacement"}
               style={{ flex:1, minWidth: isMobile ? 120 : 80, fontFamily:MONO, fontSize: isMobile ? 15 : 11,
                 padding: isMobile ? "10px 12px" : "6px 10px", borderRadius:4,
-                background:surface, border:`1px solid ${border}`, color:text, outline:"none" }} />
-            <button onClick={submitManual}
+                background:surface, border:`1px solid ${border}`, color: canScan ? text : muted, outline:"none",
+                ...(!canScan ? { opacity:0.45 } : {}) }} />
+            <button onClick={submitManual} disabled={!canScan}
               style={{ ...btnBase, padding: isMobile ? "12px 14px" : "6px 10px",
-                background:accent+"22", border:`1px solid ${accent}`, color:accent, fontWeight:700, flexShrink:0 }}>↵</button>
+                background:accent+"22", border:`1px solid ${accent}`, color:accent, fontWeight:700, flexShrink:0,
+                ...(!canScan ? disabledStyle : {}) }}>↵</button>
           </div>
+            );
+          })()}
 
           {/* Row 3 : position slots 1–51 */}
           {(() => {
