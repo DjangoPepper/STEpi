@@ -21,7 +21,7 @@ const LS = {
 };
 
 /* ── Types ────────────────────────────────────────────────────────── */
-interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; }
+interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; position?: string; }
 interface HangarLine  { id: string; name: string; items: HangarItem[]; }
 interface HangarProps { dark: boolean; }
 
@@ -30,11 +30,14 @@ const newId = () => `hl_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
 const fmtW  = (w: number | null) =>
   w === null ? "—" : w.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
+/* line background palette */
+const LINE_BG_DARK  = ["#1c1305","#051c09","#06091c","#1a0512","#051a1a","#14190a","#190a05"];
+const LINE_BG_LIGHT = ["#fff7ed","#f0fdf4","#eff6ff","#fdf4ff","#f0fdfa","#fefce8","#fff1f2"];
+
 export default function Hangar({ dark }: HangarProps) {
   const bg      = dark ? "#0d0d0d" : "#f5f5f5";
   const surface = dark ? "#141414" : "#ffffff";
   const text    = dark ? "#e8e8e0" : "#1a1a1a";
-  const accent  = dark ? "#6ee7b7" : "#059669";
   const muted   = dark ? "#555"    : "#888";
   const border  = dark ? "#2a2a2a" : "#d0d0d0";
   const danger  = dark ? "#f87171" : "#dc2626";
@@ -44,7 +47,6 @@ export default function Hangar({ dark }: HangarProps) {
   const vw        = useWindowWidth();
   const isMobile  = vw < 640;
   const isTablet  = vw >= 640 && vw < 1024;
-  const isDesktop = vw >= 1024;
 
   /* ── Excel data ──────────────────────────────────────────────── */
   const [xlHeaders,  setXlHeaders]  = useState<string[]>([]);
@@ -68,7 +70,7 @@ export default function Hangar({ dark }: HangarProps) {
   useEffect(() => { LS.set("hgr_selectedId", selectedId); }, [selectedId]);
 
   /* ── Pending (unknown code → manual weight entry) ───────────── */
-  const [pending, setPending] = useState<{ code: string; weight: string } | null>(null);
+  const [pending, setPending] = useState<{ code: string; weight: string; position: string } | null>(null);
   const pendingRef = useRef<boolean>(false);
   useEffect(() => { pendingRef.current = pending !== null; }, [pending]);
 
@@ -76,6 +78,18 @@ export default function Hangar({ dark }: HangarProps) {
   const [scanDelay, setScanDelay] = useState<number>(() => LS.get("hgr_scanDelay", 1800));
   const scanDelayRef = useRef<number>(scanDelay);
   useEffect(() => { scanDelayRef.current = scanDelay; LS.set("hgr_scanDelay", scanDelay); }, [scanDelay]);
+
+  /* ── F12 / QAA mode ─────────────────────────────────────────── */
+  const [f12Mode, setF12Mode] = useState<boolean>(() => LS.get("hgr_f12mode", false));
+  const f12ModeRef = useRef<boolean>(false);
+  useEffect(() => { f12ModeRef.current = f12Mode; LS.set("hgr_f12mode", f12Mode); }, [f12Mode]);
+  /* mode colour: orange (QAA) | red-pink (F12) */
+  const accent = f12Mode ? (dark ? "#fca5a5" : "#ef4444") : "#f97316";
+
+  /* ── QAA position ────────────────────────────────────────────── */
+  const [qaaPosition, setQaaPosition] = useState<string>(() => LS.get("hgr_qaapos", ""));
+  const qaaPositionRef = useRef<string>("");
+  useEffect(() => { qaaPositionRef.current = qaaPosition; LS.set("hgr_qaapos", qaaPosition); }, [qaaPosition]);
 
   /* ── Camera ──────────────────────────────────────────────────── */
   const videoRef      = useRef<HTMLVideoElement>(null);
@@ -127,7 +141,7 @@ export default function Hangar({ dark }: HangarProps) {
   }, []);
 
   /* ── Feedback ────────────────────────────────────────────────── */
-  const [lastScan,   setLastScan]   = useState<{ code: string; status: "added"|"duplicate"|"noline"|"unknown" } | null>(null);
+  const [lastScan,   setLastScan]   = useState<{ code: string; status: "added"|"duplicate"|"noline"|"unknown"|"posdup" } | null>(null);
   const [flashColor, setFlashColor] = useState<string | null>(null);
 
   /* ── Manual input ────────────────────────────────────────────── */
@@ -153,6 +167,13 @@ export default function Hangar({ dark }: HangarProps) {
   const addItem = useCallback((code: string, weight: number | null, fromExcel: boolean) => {
     const selId = LS.get<string | null>("hgr_selectedId", null);
     if (!selId) { setLastScan({ code, status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return; }
+    const pos = qaaPositionRef.current || undefined;
+    if (pos) {
+      const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
+      if (fresh.some((l) => l.items.some((it) => it.position === pos))) {
+        setLastScan({ code, status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return;
+      }
+    }
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.id === selId);
       if (idx === -1) return prev;
@@ -162,9 +183,33 @@ export default function Hangar({ dark }: HangarProps) {
         return prev;
       }
       setLastScan({ code, status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
-      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel }] }; return n;
+      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel, position: pos }] }; return n;
     });
   }, [accent]);
+
+  /* ── Null scan (empty slot) ──────────────────────────────────── */
+  const addNullItem = useCallback(() => {
+    playTone("scan");
+    const selId = LS.get<string | null>("hgr_selectedId", null);
+    if (!selId) { setLastScan({ code: "∅", status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return; }
+    const code = `∅${Date.now().toString(36)}`;
+    const pos = qaaPositionRef.current || undefined;
+    if (pos) {
+      const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
+      if (fresh.some((l) => l.items.some((it) => it.position === pos))) {
+        setLastScan({ code: "∅ vide", status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
+        setTimeout(() => playTone("error"), 120); return;
+      }
+    }
+    setLines((prev) => {
+      const idx = prev.findIndex((l) => l.id === selId);
+      if (idx === -1) return prev;
+      const line = prev[idx];
+      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight: null, fromExcel: false, position: pos }] }; return n;
+    });
+    setLastScan({ code: "∅ vide", status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
+    setTimeout(() => playTone("found"), 120);
+  }, [accent, playTone]);
 
   /* ── Handle scanned code ─────────────────────────────────────── */
   const handleCode = useCallback((raw: string) => {
@@ -188,7 +233,7 @@ export default function Hangar({ dark }: HangarProps) {
       setLastScan({ code, status: "unknown" });
       setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
       setTimeout(() => playTone("error"), 120);
-      setPending({ code, weight: "" });
+      setPending({ code, weight: "", position: qaaPositionRef.current });
     }
   }, [lookupResult, addItem, playTone]);
 
@@ -198,6 +243,9 @@ export default function Hangar({ dark }: HangarProps) {
   const confirmPending = () => {
     if (!pending) return;
     const w = parseFloat(pending.weight.replace(",", "."));
+    /* sync position back so addItem reads the right value from the ref */
+    qaaPositionRef.current = pending.position;
+    setQaaPosition(pending.position);
     addItem(pending.code, isNaN(w) ? null : w, false);
     setPending(null);
   };
@@ -305,9 +353,12 @@ export default function Hangar({ dark }: HangarProps) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), "Résumé");
     // Detail sheet per line
     for (const line of lines) {
+      const hasPos = line.items.some((it) => it.position);
       const data: (string | number | null)[][] = [
-        ["#", "Réf.", "Poids (kg)", "Source"],
-        ...line.items.map((it, i) => [i + 1, it.code, it.weight, it.fromExcel ? "Excel" : "Manuel"]),
+        hasPos ? ["#", "Réf.", "Poids (kg)", "Position", "Source"] : ["#", "Réf.", "Poids (kg)", "Source"],
+        ...line.items.map((it, i) => hasPos
+          ? [i + 1, it.code, it.weight, it.position ?? "", it.fromExcel ? "Excel" : "Manuel"]
+          : [i + 1, it.code, it.weight, it.fromExcel ? "Excel" : "Manuel"]),
       ];
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), line.name.slice(0, 31));
     }
@@ -333,9 +384,36 @@ export default function Hangar({ dark }: HangarProps) {
         <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0 }}>
           🏭 Hangar
         </h2>
+
+        {/* F12 / QAA toggle */}
+        <button
+          onClick={() => setF12Mode((v) => !v)}
+          title={f12Mode ? "Mode F12 : chaque scan → {nom} up + {nom} down" : "Mode QAA : scan normal"}
+          style={{
+            display: "flex", alignItems: "center", gap: 0,
+            padding: 0, border: `1px solid ${f12Mode ? accent : border}`,
+            borderRadius: 20, overflow: "hidden", cursor: "pointer",
+            background: "transparent", flexShrink: 0,
+            fontSize: isMobile ? 12 : 10, fontFamily: MONO,
+          }}
+        >
+          <span style={{
+            padding: isMobile ? "7px 11px" : "4px 9px",
+            background: !f12Mode ? (dark ? accent + "33" : accent + "22") : "transparent",
+            color: !f12Mode ? accent : muted, fontWeight: !f12Mode ? 700 : 400,
+            transition: "background 0.2s, color 0.2s",
+          }}>QAA</span>
+          <span style={{
+            padding: isMobile ? "7px 11px" : "4px 9px",
+            background: f12Mode ? (dark ? accent + "33" : accent + "22") : "transparent",
+            color: f12Mode ? accent : muted, fontWeight: f12Mode ? 700 : 400,
+            transition: "background 0.2s, color 0.2s",
+          }}>F12</span>
+        </button>
+
         <button onClick={reloadXl}
           style={{ ...btnBase, background: "transparent", border: `1px solid ${border}`, color: muted }}>
-          ↺ Recharger Excel
+          ↺ recharger
         </button>
         {xlHeaders.length > 0 && (
           <>
@@ -362,15 +440,14 @@ export default function Hangar({ dark }: HangarProps) {
         )}
         <button onClick={exportXLSX}
           style={{ ...btnBase, marginLeft: "auto", background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>
-          ↓ Exporter XLSX
+          ↓ Export
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start",
-        flexDirection: isDesktop ? "row" : "column", flexWrap: isDesktop ? "nowrap" : "wrap" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexDirection: "column" }}>
 
         {/* ── Lines panel ─────────────────────────────────────── */}
-        <div style={{ width: isDesktop ? 260 : "100%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ width: "100%", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: isMobile ? 13 : 10, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em" }}>
             Lignes ({lines.length})
           </div>
@@ -383,15 +460,16 @@ export default function Hangar({ dark }: HangarProps) {
             <button onClick={createLine}
               style={{ ...btnBase, background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>+</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: isDesktop ? 520 : 200, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
             {lines.length === 0 && <div style={{ fontSize: isMobile ? 14 : 11, color: muted }}>Aucune ligne créée</div>}
-            {lines.map((l) => {
+            {lines.map((l, lIdx) => {
               const isActive = l.id === selectedId;
               const sum = lineSummary.find((s) => s.id === l.id);
+              const lineBg = dark ? LINE_BG_DARK[lIdx % LINE_BG_DARK.length] : LINE_BG_LIGHT[lIdx % LINE_BG_LIGHT.length];
               return (
                 <div key={l.id} onClick={() => setSelectedId(l.id)}
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 5,
-                    background: isActive ? accent+"18" : (dark?"#1a1a1a":"#f0f0f0"),
+                    background: isActive ? accent+"40" : lineBg,
                     border: `1px solid ${isActive ? accent : border}`, cursor: "pointer" }}>
                   {editingId === l.id ? (
                     <input autoFocus value={editingName}
@@ -418,8 +496,7 @@ export default function Hangar({ dark }: HangarProps) {
         </div>
 
         {/* ── Camera column ───────────────────────────────────── */}
-        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch",
-          width: isDesktop ? 420 : "100%", flexShrink: 0 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"stretch", width:"100%", flexShrink: 0 }}>
           <div style={{ padding:"5px 14px", borderRadius:4, fontSize: isMobile ? 15 : 11, fontWeight:700,
             background: selectedLine ? accent+"18" : (dark?"#1a1a1a":"#f0f0f0"),
             border:`1px solid ${selectedLine ? accent : border}`,
@@ -453,20 +530,49 @@ export default function Hangar({ dark }: HangarProps) {
             )}
           </div>
 
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {/* Buttons + slider + position — one row */}
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
             <button onClick={cameraOn ? stopCamera : startCamera}
               style={{ ...btnBase, fontSize: isMobile ? 15 : 12, padding: isMobile ? "12px 20px" : "8px 16px",
+                flexShrink:0,
                 background: cameraOn?(dark?"#2d0a0a":"#fee2e2"):(dark?"#0a200f":"#dcfce7"),
                 border:`1px solid ${cameraOn?"#ef4444":accent}`,
                 color: cameraOn?"#ef4444":accent, fontWeight:700 }}>
               {cameraOn ? "⏹ Arrêter" : "▶ Caméra"}
             </button>
+            <button onClick={addNullItem}
+              title="Ajouter un emplacement vide (sans référence)"
+              style={{ ...btnBase, fontSize: isMobile ? 14 : 11, padding: isMobile ? "12px 16px" : "8px 13px",
+                flexShrink:0,
+                background: "transparent", border:`1px solid ${muted}`, color: muted }}>
+              ∅ vide
+            </button>
+            {/* Delay slider */}
+            <div style={{ display:"flex", alignItems:"center", gap:6, flex:1, minWidth:100 }}>
+              <span style={{ fontSize: isMobile ? 12 : 10, color:muted, whiteSpace:"nowrap", flexShrink:0 }}>Délai</span>
+              <input type="range" min={300} max={5000} step={100} value={scanDelay}
+                onChange={(e) => setScanDelay(Number(e.target.value))}
+                style={{ flex:1, minWidth:0, accentColor:accent }} />
+              <span style={{ fontSize: isMobile ? 12 : 10, color:text, whiteSpace:"nowrap", flexShrink:0 }}>{(scanDelay/1000).toFixed(1)}s</span>
+            </div>
+            {/* Position — right of slider */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+              <span style={{ fontSize: isMobile ? 12 : 10, color:muted, whiteSpace:"nowrap" }}>Pos.</span>
+              <input
+                value={qaaPosition}
+                onChange={(e) => setQaaPosition(e.target.value.toUpperCase())}
+                placeholder="A1"
+                style={{ width: isMobile ? 54 : 44, fontFamily:MONO, fontSize: isMobile ? 14 : 11,
+                  padding: isMobile ? "10px 6px" : "5px 5px", borderRadius:4,
+                  background:surface, border:`1px solid ${accent}`, color:text,
+                  outline:"none", textAlign:"center", fontWeight:700 }} />
+            </div>
             {cameraOn && (
-              <div style={{ fontSize: isMobile ? 13 : 10, padding:"3px 8px", borderRadius:4,
+              <div style={{ fontSize: isMobile ? 11 : 10, padding:"3px 6px", borderRadius:4, flexShrink:0,
                 background: useNative?accent+"18":(dark?"#0a0f20":"#e0e7ff"),
                 border:`1px solid ${useNative?accent:(dark?"#818cf8":"#4f46e5")}`,
                 color: useNative?accent:(dark?"#818cf8":"#4f46e5") }}>
-                {useNative?"⚡ Natif":"⚙ ZXing"}
+                {useNative?"⚡":"⚙"}
               </div>
             )}
           </div>
@@ -475,15 +581,6 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ fontSize: isMobile ? 14 : 11, color:"#ef4444", padding:"7px 12px",
               background:dark?"#2d0a0a":"#fee2e2", borderRadius:4, border:"1px solid #ef4444" }}>⚠ {cameraError}</div>
           )}
-
-          {/* Scan delay slider */}
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize: isMobile ? 13 : 10, color:muted, whiteSpace:"nowrap" }}>Délai :</span>
-            <input type="range" min={300} max={5000} step={100} value={scanDelay}
-              onChange={(e) => setScanDelay(Number(e.target.value))}
-              style={{ flex:1, accentColor:accent }} />
-            <span style={{ fontSize: isMobile ? 13 : 10, color:text, whiteSpace:"nowrap", minWidth:42, textAlign:"right" }}>{(scanDelay/1000).toFixed(1)} s</span>
-          </div>
 
           {/* Manual entry */}
           <div style={{ display:"flex", gap:6, width:"100%" }}>
@@ -503,8 +600,9 @@ export default function Hangar({ dark }: HangarProps) {
               border:`1px solid ${lastScan.status==="added"?accent:amber}` }}>
               <div style={{fontSize:10,color:muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3}}>Dernière réf.</div>
               <div style={{fontSize:12,fontWeight:700,color:text,wordBreak:"break-all",marginBottom:3}}>{lastScan.code}</div>
-              {lastScan.status==="added"    && <div style={{fontSize:11,color:accent}}>✓ Ajouté</div>}
+              {lastScan.status==="added"    && <div style={{fontSize:11,color:accent}}>✓ Ajouté{qaaPosition ? ` → ${qaaPosition}` : ""}</div>}
               {lastScan.status==="duplicate"&& <div style={{fontSize:11,color:amber}}>⚠ Code déjà présent dans cette ligne</div>}
+              {lastScan.status==="posdup"   && <div style={{fontSize:11,color:amber}}>⚠ Position "{qaaPosition}" déjà occupée</div>}
               {lastScan.status==="noline"   && <div style={{fontSize:11,color:amber}}>⚠ Aucune ligne sélectionnée</div>}
               {lastScan.status==="unknown"  && <div style={{fontSize:11,color:amber}}>? Réf. absente du fichier Excel → saisie manuelle</div>}
             </div>
@@ -529,36 +627,45 @@ export default function Hangar({ dark }: HangarProps) {
             ) : (
               <div style={{ maxHeight:380, overflowY:"auto" }}>
                 <table style={{ borderCollapse:"collapse", width:"100%" }}>
-                  <thead>
-                    <tr>
-                      <th style={thS}>#</th>
-                      <th style={thS}>Réf.</th>
-                      <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
-                      <th style={thS}>Source</th>
-                      <th style={thS}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedLine.items.map((it, i) => (
-                      <tr key={it.code}>
-                        <td style={tdS()}><span style={{color:muted}}>{i+1}</span></td>
-                        <td style={tdS()}>{it.code}</td>
-                        <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
-                        <td style={tdS()}>
-                          <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
-                            background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
-                            border:`1px solid ${it.fromExcel?accent:amber}`,
-                            color: it.fromExcel?accent:amber }}>
-                            {it.fromExcel?"Excel":"Manuel"}
-                          </span>
-                        </td>
-                        <td style={tdS()}>
-                          <button onClick={()=>removeItem(selectedLine.id, it.code)}
-                            style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color:muted, fontSize:12}}>×</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {(() => {
+                    const showPos = selectedLine.items.some((it) => it.position);
+                    return (
+                      <>
+                      <thead>
+                        <tr>
+                          <th style={thS}>#</th>
+                          <th style={thS}>Réf.</th>
+                          <th style={{...thS, textAlign:"right"}}>Poids (kg)</th>
+                          {showPos && <th style={thS}>Pos.</th>}
+                          <th style={thS}>Source</th>
+                          <th style={thS}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedLine.items.map((it, i) => (
+                          <tr key={it.code}>
+                            <td style={tdS()}><span style={{color:muted}}>{i+1}</span></td>
+                            <td style={tdS()}>{it.code}</td>
+                            <td style={{...tdS(true), color: it.weight===null?amber:text}}>{fmtW(it.weight)}</td>
+                            {showPos && <td style={{...tdS(), fontWeight:700, color:it.position?accent:muted}}>{it.position ?? "—"}</td>}
+                            <td style={tdS()}>
+                              <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
+                                background: it.fromExcel?(dark?"#0a200f":"#dcfce7"):(dark?"#1a100a":"#fef3c7"),
+                                border:`1px solid ${it.fromExcel?accent:amber}`,
+                                color: it.fromExcel?accent:amber }}>
+                                {it.fromExcel?"Excel":"Manuel"}
+                              </span>
+                            </td>
+                            <td style={tdS()}>
+                              <button onClick={()=>removeItem(selectedLine.id, it.code)}
+                                style={{...btnBase, padding:"1px 6px", background:"transparent", border:"none", color:muted, fontSize:12}}>×</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      </>
+                    );
+                  })()}
                 </table>
               </div>
             )}
@@ -581,15 +688,18 @@ export default function Hangar({ dark }: HangarProps) {
               </tr>
             </thead>
             <tbody>
-              {lineSummary.map((l) => (
-                <tr key={l.id} style={{ background: l.id===selectedId?(accent+"0d"):"transparent" }}>
+              {lineSummary.map((l, lIdx) => {
+              const lineBg = dark ? LINE_BG_DARK[lIdx % LINE_BG_DARK.length] : LINE_BG_LIGHT[lIdx % LINE_BG_LIGHT.length];
+              return (
+                <tr key={l.id} style={{ background: l.id===selectedId?(accent+"28"):lineBg }}>
                   <td style={tdS()}>{l.name}</td>
                   <td style={tdS(true)}>{l.qty}</td>
                   <td style={{...tdS(true), color: l.hasNull?amber:text}}>
                     {fmtW(l.weight)}{l.hasNull?" *":""}
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
             <tfoot>
               <tr style={{ background:dark?"#0e2016":"#e8f5ee" }}>
@@ -615,17 +725,34 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ fontSize: isMobile ? 14 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:12 }}>
               Réf. non trouvée dans Excel
             </div>
-            <div style={{ fontSize: isMobile ? 15 : 13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:16 }}>
+            <div style={{ fontSize: isMobile ? 15 : 13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:14 }}>
               {pending.code}
             </div>
-            <div style={{ fontSize: isMobile ? 14 : 11, color:muted, marginBottom:6 }}>Poids (kg) :</div>
-            <input autoFocus value={pending.weight} inputMode="decimal"
-              onChange={(e) => setPending({ ...pending, weight: e.target.value })}
-              onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
-              placeholder="ex: 12.5"
-              style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13, padding: isMobile ? "13px 12px" : "8px 10px",
-                borderRadius:5, background:bg, border:`1px solid ${accent}`, color:text, outline:"none",
-                boxSizing:"border-box", marginBottom:16 }} />
+            {/* Position + Weight side by side */}
+            <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Position :</div>
+                <input value={pending.position}
+                  onChange={(e) => setPending({ ...pending, position: e.target.value.toUpperCase() })}
+                  onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
+                  placeholder="A1"
+                  style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
+                    padding: isMobile ? "12px 8px" : "7px 8px", borderRadius:5,
+                    background:bg, border:`1px solid ${accent}`, color:text, outline:"none",
+                    textAlign:"center", fontWeight:700, letterSpacing:"0.1em", boxSizing:"border-box" as const }} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Poids (kg) :</div>
+                <input autoFocus value={pending.weight} inputMode="decimal"
+                  onChange={(e) => setPending({ ...pending, weight: e.target.value })}
+                  onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
+                  placeholder="12.5"
+                  style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
+                    padding: isMobile ? "12px 8px" : "7px 8px", borderRadius:5,
+                    background:bg, border:`1px solid ${border}`, color:text, outline:"none",
+                    boxSizing:"border-box" as const }} />
+              </div>
+            </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={confirmPending}
                 style={{ ...btnBase, flex:1, padding: isMobile ? "13px" : "9px", background:accent+"22",

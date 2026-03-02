@@ -7,10 +7,10 @@ import Hangar from "./hangar";
 import type { PointageData } from "./types";
 import { useWindowWidth } from "./useWindowWidth";
 
-type TabId = "excel-cleaner" | "pointage" | "scan" | "tally" | "hangar";
+type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "excel-cleaner", label: "Excel Cleaner" },
+  { id: "cleaner", label: "Excel Cleaner" },
   { id: "pointage",      label: "Pointage" },
   { id: "scan",          label: "Scan" },
   { id: "tally",         label: "Tally" },
@@ -20,7 +20,7 @@ const TABS: { id: TabId; label: string }[] = [
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
 
 export default function App() {
-  const [active, setActive]           = useState<TabId>("excel-cleaner");
+  const [active, setActive]           = useState<TabId>("cleaner");
   const [dark, setDark]               = useState(true);
   const [pointageData, setPointageData] = useState<PointageData | null>(null);
   const vw      = useWindowWidth();
@@ -92,7 +92,7 @@ export default function App() {
 
       {/* ── Page content ────────────────────────────────────────── */}
       <main style={{ flex: 1, overflow: "auto" }}>
-        {active === "excel-cleaner" && (
+        {active === "cleaner" && (
           <ExcelCleaner
             dark={dark}
             onDarkToggle={() => setDark((d) => !d)}
