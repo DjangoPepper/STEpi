@@ -20,6 +20,8 @@ const LS = {
   set<T>(key: string, val: T) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} },
 };
 
+import { dechargementColor } from "./dechargementColor";
+
 /* ── Types ────────────────────────────────────────────────────────── */
 interface HangarItem  { code: string; weight: number | null; fromExcel: boolean; position?: string; wagonId?: string; dechargement?: string; }
 interface HangarLine  { id: string; name: string; items: HangarItem[]; }
@@ -535,7 +537,7 @@ export default function Hangar({ dark }: HangarProps) {
 
   return (
     <div style={{ fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
+      <div style={{ maxWidth: 675, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
@@ -837,28 +839,32 @@ export default function Hangar({ dark }: HangarProps) {
             const odds  = Array.from({length:26},(_,i)=>String(i*2+1));  /* 1,3,5…51 */
             const evens = Array.from({length:25},(_,i)=>String(i*2+2));  /* 2,4,6…50 */
             const chip = (s: string) => {
-              const isSel = qaaPosition === s;
-              const isOcc = occupiedPositions.has(s);
+              const isSel  = qaaPosition === s;
+              const isOcc  = occupiedPositions.has(s);
               const isVide = videPositions.has(s);
+              const item   = isOcc ? (selectedLine?.items ?? []).find((it) => it.position === s) : undefined;
+              const dech   = item?.dechargement ?? "";
+              const dc     = isOcc && !isVide && dech ? dechargementColor(dech, dark) : null;
               return (
                 <div key={s} style={{ position:"relative", display:"inline-block" }}
                   onMouseEnter={() => setHoveredChip(s)}
                   onMouseLeave={() => setHoveredChip(null)}>
                 <button disabled={isOcc && !isSel}
                   onClick={() => setQaaPosition(isSel ? "" : s)}
-                  title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
+                  title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}${dech ? " · " + dech : ""}` : `Emplacement ${s}`}
                   style={{
                     fontFamily:MONO, fontSize: isMobile ? 12 : 9,
                     width:CHIP, height:CHIP, flexShrink:0,
                     borderRadius:4, padding:0, lineHeight:1,
                     cursor: isOcc && !isSel ? "not-allowed" : "pointer",
-                    border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
+                    border: isSel ? `2px solid ${accent}` : dc ? `1px solid ${dc.border}` : `1px solid ${isOcc ? (dark?"#4a3a00":"#d97706") : border}`,
                     background: isSel ? accent+"33"
-                      : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
+                      : dc  ? dc.bg
+                      : isOcc ? (dark ? "#2a1a00" : "#fde68a")
                       : (dark ? "#1a1a1a" : "#f0f0f0"),
-                    color: isSel ? accent : isOcc ? "#92400e" : muted,
+                    color: isSel ? accent : dc ? dc.color : isOcc ? "#92400e" : muted,
                     fontWeight: isSel ? 700 : 400,
-                    opacity: isOcc && !isSel ? 0.75 : 1,
+                    opacity: isOcc && !isSel ? 0.85 : 1,
                   }}>{s}</button>
                 </div>
               );
@@ -943,8 +949,9 @@ export default function Hangar({ dark }: HangarProps) {
                 {itemsOpen && (
                   <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
                     background: dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
+                  <div style={{ overflowX:"auto" }}>
                   <div style={{ maxHeight:380, overflowY:"auto" }}>
-                    <table style={{ borderCollapse:"collapse", width:"100%" }}>
+                    <table style={{ borderCollapse:"collapse", minWidth:"100%" }}>
                       {(() => {
                         const showPos = selectedLine.items.some((it) => it.position);
                         const showDechargement = selectedLine.items.some((it) => it.dechargement);
@@ -1005,6 +1012,7 @@ export default function Hangar({ dark }: HangarProps) {
                     </table>
                   </div>
                   </div>
+                  </div>
                 )}
               </>
             )}
@@ -1022,7 +1030,8 @@ export default function Hangar({ dark }: HangarProps) {
           </div>
           {wagonSumOpen && (
             <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`, background:dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
-            <table style={{ borderCollapse:"collapse", width:"100%" }}>
+            <div style={{ overflowX:"auto" }}>
+            <table style={{ borderCollapse:"collapse", minWidth:"100%" }}>
             <thead>
               <tr style={{ background:dark?"#1a0e00":"#fff0ee" }}>
                 <th style={{...thS, cursor:"pointer", userSelect:"none" as const}}
@@ -1057,6 +1066,7 @@ export default function Hangar({ dark }: HangarProps) {
             </tbody>
           </table>
           </div>
+          </div>
           )}
         </div>
       )}
@@ -1071,7 +1081,8 @@ export default function Hangar({ dark }: HangarProps) {
           </div>
           {recapOpen && (
             <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`, background:dark?"#071a0b":"#f0fdf4", overflow:"hidden" }}>
-            <table style={{ borderCollapse:"collapse", width:"100%" }}>
+            <div style={{ overflowX:"auto" }}>
+            <table style={{ borderCollapse:"collapse", minWidth:"100%" }}>
             <thead>
               <tr style={{ background:dark?"#1a1a1a":"#f0f0f0" }}>
                 <th style={{...thS, cursor:"pointer", userSelect:"none" as const}}
@@ -1108,6 +1119,7 @@ export default function Hangar({ dark }: HangarProps) {
               </tr>
             </tfoot>
           </table>
+          </div>
           </div>
           )}
           {recapOpen && anyNull && <div style={{ fontSize: isMobile ? 13 : 10, color:amber, marginTop:6 }}>* Poids inconnu pour certains articles (non saisi)</div>}
