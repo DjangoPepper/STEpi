@@ -77,15 +77,26 @@ export default function Hangar({ dark }: HangarProps) {
   useEffect(() => { LS.set("hgr_codeCol", codeColIdx); }, [codeColIdx]);
   useEffect(() => { LS.set("hgr_wtCol",   wtColIdx);   }, [wtColIdx]);
 
+  /* ── F12 / QAA mode — déclaré ici pour typer les clés LS ────── */
+  const [f12Mode, setF12Mode] = useState<boolean>(() => LS.get("hgr_f12mode", false));
+  const f12ModeRef = useRef<boolean>(LS.get("hgr_f12mode", false) as boolean);
+  /* accent: orange QAA | rouge F12 */
+  const accent = f12Mode ? (dark ? "#fca5a5" : "#ef4444") : "#f97316";
+  /* helper ref-based pour les callbacks (closure-safe) */
+  const skRef = (base: string) => `${base}_${f12ModeRef.current ? "F12" : "QAA"}`;
+  const initialMountRef = useRef(true);
+
   /* ── Lines ───────────────────────────────────────────────────── */
-  const [lines,       setLines]       = useState<HangarLine[]>(() => LS.get("hgr_lines2", []));
-  const [selectedId,  setSelectedId]  = useState<string | null>(() => LS.get("hgr_selectedId", null));
-  useEffect(() => { LS.set("hgr_lines2",     lines);      }, [lines]);
-  useEffect(() => { LS.set("hgr_selectedId", selectedId); }, [selectedId]);
+  const [lines,       setLines]       = useState<HangarLine[]>(() => LS.get(`hgr_lines2_${f12Mode ? "F12" : "QAA"}`, []));
+  const [selectedId,  setSelectedId]  = useState<string | null>(() => LS.get(`hgr_selectedId_${f12Mode ? "F12" : "QAA"}`, null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { LS.set(skRef("hgr_lines2"),     lines);      }, [lines]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { LS.set(skRef("hgr_selectedId"), selectedId); }, [selectedId]);
 
   /* ── Wagons ───────────────────────────────────────────────────── */
-  const [wagons,          setWagons]          = useState<Wagon[]>(() => LS.get("hgr_wagons", []));
-  const [selectedWagonId, setSelectedWagonId] = useState<string | null>(() => LS.get("hgr_wagonId", null));
+  const [wagons,          setWagons]          = useState<Wagon[]>(() => LS.get(`hgr_wagons_${f12Mode ? "F12" : "QAA"}`, []));
+  const [selectedWagonId, setSelectedWagonId] = useState<string | null>(() => LS.get(`hgr_wagonId_${f12Mode ? "F12" : "QAA"}`, null));
   const [wagonSerial,     setWagonSerial]     = useState("");
   const [wagonCoils,      setWagonCoils]      = useState("");
   const [editingWagonId,  setEditingWagonId]  = useState<string | null>(null);
@@ -102,8 +113,10 @@ export default function Hangar({ dark }: HangarProps) {
   const [wagonSumOpen,    setWagonSumOpen]    = useState(true);
   const selectedWagonIdRef = useRef<string | null>(null);
   selectedWagonIdRef.current = selectedWagonId;
-  useEffect(() => { LS.set("hgr_wagons",  wagons);          }, [wagons]);
-  useEffect(() => { LS.set("hgr_wagonId", selectedWagonId); }, [selectedWagonId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { LS.set(skRef("hgr_wagons"),  wagons);          }, [wagons]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { LS.set(skRef("hgr_wagonId"), selectedWagonId); }, [selectedWagonId]);
 
   const addWagon = () => {
     const serial = wagonSerial.trim();
@@ -131,29 +144,36 @@ export default function Hangar({ dark }: HangarProps) {
   const cancelEditWagon = () => { setEditingWagonId(null); setAddingWagon(false); setWagonSerial(""); setWagonCoils(""); setWagonPort(""); };
 
   /* ── Pending (unknown code → manual weight entry) ───────────── */
-  const [pending, setPending] = useState<{ code: string; weight: string; position: string; dechargement: string } | null>(null);
+  const [pending, setPending] = useState<{ code: string; weight: string; position: string; dechargement: string; wagonId: string } | null>(null);
   const pendingRef = useRef<boolean>(false);
   useEffect(() => { pendingRef.current = pending !== null; }, [pending]);
 
   /* ── Force-position warning ──────────────────────────────────── */
   const [forceWarning, setForceWarning] = useState<ForceWarning | null>(null);
   const [posConflict,  setPosConflict]  = useState<PosConflict  | null>(null);
+  const [overWagonWarning, setOverWagonWarning] = useState<{ serial: string; scanned: number; expected: number } | null>(null);
 
   /* ── Scan delay ───────────────────────────────────────────────── */
   const [scanDelay, setScanDelay] = useState<number>(() => LS.get("hgr_scanDelay", 1800));
   const scanDelayRef = useRef<number>(scanDelay);
   useEffect(() => { scanDelayRef.current = scanDelay; LS.set("hgr_scanDelay", scanDelay); }, [scanDelay]);
 
-  /* ── F12 / QAA mode ─────────────────────────────────────────── */
-  const [f12Mode, setF12Mode] = useState<boolean>(() => LS.get("hgr_f12mode", false));
-  const f12ModeRef = useRef<boolean>(false);
-  useEffect(() => { f12ModeRef.current = f12Mode; LS.set("hgr_f12mode", f12Mode); }, [f12Mode]);
-  /* mode colour: orange (QAA) | red-pink (F12) */
-  const accent = f12Mode ? (dark ? "#fca5a5" : "#ef4444") : "#f97316";
+  /* ── F12 / QAA switch — persiste + charge les données du site ── */
+  useEffect(() => {
+    f12ModeRef.current = f12Mode;
+    LS.set("hgr_f12mode", f12Mode);
+    if (initialMountRef.current) { initialMountRef.current = false; return; }
+    const s = f12Mode ? "F12" : "QAA";
+    setLines(LS.get(`hgr_lines2_${s}`, []));
+    setSelectedId(LS.get(`hgr_selectedId_${s}`, null));
+    setWagons(LS.get(`hgr_wagons_${s}`, []));
+    setSelectedWagonId(LS.get(`hgr_wagonId_${s}`, null));
+    setLinePositions(LS.get(`hgr_linepos_${s}`, {}));
+  }, [f12Mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── QAA position — per line ─────────────────────────────── */
   const [linePositions, setLinePositions] = useState<Record<string,string>>(
-    () => LS.get<Record<string,string>>("hgr_linepos", {})
+    () => LS.get<Record<string,string>>(`hgr_linepos_${f12Mode ? "F12" : "QAA"}`, {})
   );
   const qaaPositionRef = useRef<string>("");
   // derived: position of the currently selected line
@@ -168,7 +188,8 @@ export default function Hangar({ dark }: HangarProps) {
       return n;
     });
   };
-  useEffect(() => { LS.set("hgr_linepos", linePositions); }, [linePositions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { LS.set(skRef("hgr_linepos"), linePositions); }, [linePositions]);
 
   /* ── Camera ──────────────────────────────────────────────────── */
   const videoRef      = useRef<HTMLVideoElement>(null);
@@ -243,12 +264,12 @@ export default function Hangar({ dark }: HangarProps) {
   }, []);
 
   /* ── Add item to selected line ───────────────────────────────── */
-  const addItem = useCallback((code: string, weight: number | null, fromExcel: boolean, dechargement?: string) => {
-    const selId = LS.get<string | null>("hgr_selectedId", null);
+  const addItem = useCallback((code: string, weight: number | null, fromExcel: boolean, dechargement?: string, wagonIdOverride?: string | null) => {
+    const selId = LS.get<string | null>(skRef("hgr_selectedId"), null);
     if (!selId) { setLastScan({ code, status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return; }
     const pos = qaaPositionRef.current || undefined;
     if (pos) {
-      const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
+      const fresh = LS.get<HangarLine[]>(skRef("hgr_lines2"), []);
       const currLine = fresh.find((l) => l.id === selId);
       const hit = currLine?.items.find((it) => it.position === pos);
       if (hit) {
@@ -266,37 +287,30 @@ export default function Hangar({ dark }: HangarProps) {
         return prev;
       }
       setLastScan({ code, status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
-      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel, position: pos, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined, dechargement: dechargement || undefined }] }; return n;
+      const resolvedWagonId = wagonIdOverride !== undefined ? (wagonIdOverride || undefined) : (LS.get<string|null>(skRef("hgr_wagonId"), null) ?? undefined);
+      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight, fromExcel, position: pos, wagonId: resolvedWagonId, dechargement: dechargement || undefined }] };
+      /* check wagon overcount */
+      if (resolvedWagonId) {
+        const wag = LS.get<Wagon[]>(skRef("hgr_wagons"), []).find((w) => w.id === resolvedWagonId);
+        if (wag && wag.coilCount > 0) {
+          const newCount = n[idx].items.filter((it) => it.wagonId === resolvedWagonId).length;
+          if (newCount > wag.coilCount) {
+            setTimeout(() => setOverWagonWarning({ serial: wag.serial, scanned: newCount, expected: wag.coilCount }), 0);
+          }
+        }
+      }
+      return n;
     });
   }, [accent]);
 
   /* ── Null scan (empty slot) ──────────────────────────────────── */
   const addNullItem = useCallback(() => {
-    playTone("scan");
-    const selId = LS.get<string | null>("hgr_selectedId", null);
+    const selId = LS.get<string | null>(skRef("hgr_selectedId"), null);
     if (!selId) { setLastScan({ code: "∅", status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); return; }
+    playTone("scan");
     const code = `∅${Date.now().toString(36)}`;
-    const pos = qaaPositionRef.current || undefined;
-    if (pos) {
-      const fresh = LS.get<HangarLine[]>("hgr_lines2", []);
-      const currLine = fresh.find((l) => l.id === selId);
-      const hit = currLine?.items.find((it) => it.position === pos);
-      if (hit) {
-        setLastScan({ code: "∅ vide", status: "posdup" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
-        setTimeout(() => playTone("error"), 120);
-        setPosConflict({ code, weight: null, fromExcel: false, position: pos, originalPosition: pos, conflictLine: currLine!.name, conflictCode: hit.code });
-        return;
-      }
-    }
-    setLines((prev) => {
-      const idx = prev.findIndex((l) => l.id === selId);
-      if (idx === -1) return prev;
-      const line = prev[idx];
-      const n = [...prev]; n[idx] = { ...line, items: [...line.items, { code, weight: null, fromExcel: false, position: pos, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined }] }; return n;
-    });
-    setLastScan({ code: "∅ vide", status: "added" }); setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
-    setTimeout(() => playTone("found"), 120);
-  }, [accent, playTone]);
+    setPending({ code, weight: "0", position: qaaPositionRef.current, dechargement: "", wagonId: LS.get<string|null>(skRef("hgr_wagonId"), null) ?? "" });
+  }, [amber, playTone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Handle scanned code ─────────────────────────────────────── */
   const handleCode = useCallback((raw: string) => {
@@ -304,10 +318,10 @@ export default function Hangar({ dark }: HangarProps) {
     if (!code) return;
     // Son "code lu" dès la détection
     playTone("scan");
-    const selId = LS.get<string | null>("hgr_selectedId", null);
+    const selId = LS.get<string | null>(skRef("hgr_selectedId"), null);
     if (!selId) { setLastScan({ code, status: "noline" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); setTimeout(() => playTone("error"), 120); return; }
     // check duplicate
-    const freshLines = LS.get<HangarLine[]>("hgr_lines2", []);
+    const freshLines = LS.get<HangarLine[]>(skRef("hgr_lines2"), []);
     const line = freshLines.find((l) => l.id === selId);
     if (line?.items.some((it) => it.code === code)) {
       setLastScan({ code, status: "duplicate" }); setFlashColor(amber); setTimeout(() => setFlashColor(null), 700); setTimeout(() => playTone("error"), 120); return;
@@ -320,38 +334,42 @@ export default function Hangar({ dark }: HangarProps) {
       setLastScan({ code, status: "unknown" });
       setFlashColor(amber); setTimeout(() => setFlashColor(null), 700);
       setTimeout(() => playTone("error"), 120);
-      setPending({ code, weight: "", position: qaaPositionRef.current, dechargement: "" });
+      setPending({ code, weight: "", position: qaaPositionRef.current, dechargement: "", wagonId: LS.get<string|null>(skRef("hgr_wagonId"), null) ?? "" });
     }
-  }, [lookupResult, addItem, playTone]);
+  }, [lookupResult, addItem, playTone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { assignRef.current = handleCode; }, [handleCode]);
 
   /* ── Confirm pending manual weight ──────────────────────────── */
   const confirmPending = () => {
     if (!pending) return;
-    if (pending.position === "" || pending.weight.trim() === "") return;
+    const isVideCode = pending.code.startsWith("∅");
+    if (pending.position === "") return;
+    if (!isVideCode && pending.weight.trim() === "") return;
     const w = parseFloat(pending.weight.replace(",", "."));
-    /* even-position weight check: warn if >15% heavier than an adjacent odd neighbor */
-    const posNum = parseInt(pending.position, 10);
-    if (!isNaN(w) && posNum % 2 === 0) {
-      const allItems = lines.flatMap((l) => l.items);
-      const offenders = [String(posNum - 1), String(posNum + 1)]
-        .map((npos) => {
-          const nb = allItems.find((it) => it.position === npos && it.weight !== null);
-          if (nb && nb.weight !== null && w > nb.weight * 1.15)
-            return { pos: npos, weight: nb.weight, pct: Math.round((w / nb.weight - 1) * 100) };
-          return null;
-        })
-        .filter((x): x is { pos: string; weight: number; pct: number } => x !== null);
-      if (offenders.length > 0) {
-        setForceWarning({ code: pending.code, weight: w, position: pending.position, offenders });
-        return;
+    if (!isVideCode) {
+      /* even-position weight check: warn if >15% heavier than an adjacent odd neighbor */
+      const posNum = parseInt(pending.position, 10);
+      if (!isNaN(w) && posNum % 2 === 0) {
+        const allItems = lines.flatMap((l) => l.items);
+        const offenders = [String(posNum - 1), String(posNum + 1)]
+          .map((npos) => {
+            const nb = allItems.find((it) => it.position === npos && it.weight !== null);
+            if (nb && nb.weight !== null && w > nb.weight * 1.15)
+              return { pos: npos, weight: nb.weight, pct: Math.round((w / nb.weight - 1) * 100) };
+            return null;
+          })
+          .filter((x): x is { pos: string; weight: number; pct: number } => x !== null);
+        if (offenders.length > 0) {
+          setForceWarning({ code: pending.code, weight: w, position: pending.position, offenders });
+          return;
+        }
       }
     }
     /* sync position back so addItem reads the right value from the ref */
     qaaPositionRef.current = pending.position;
     setQaaPosition(pending.position);
-    addItem(pending.code, isNaN(w) ? null : w, false, pending.dechargement || undefined);
+    addItem(pending.code, isVideCode ? (pending.weight.trim() ? (isNaN(w) ? null : w) : null) : (isNaN(w) ? null : w), false, pending.dechargement || undefined, pending.wagonId || null);
     setPending(null);
   };
 
@@ -366,7 +384,7 @@ export default function Hangar({ dark }: HangarProps) {
 
   const forcePosConfirm = () => {
     if (!posConflict) return;
-    const selId = LS.get<string | null>("hgr_selectedId", null);
+    const selId = LS.get<string | null>(skRef("hgr_selectedId"), null);
     if (!selId) { setPosConflict(null); return; }
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.id === selId);
@@ -380,7 +398,7 @@ export default function Hangar({ dark }: HangarProps) {
       setLastScan({ code: posConflict.code, status: "added" });
       setFlashColor(accent); setTimeout(() => setFlashColor(null), 700);
       const n = [...prev];
-      n[idx] = { ...line, items: [...line.items, { code: posConflict.code, weight: posConflict.weight, fromExcel: posConflict.fromExcel, position: posConflict.position, wagonId: LS.get<string|null>("hgr_wagonId", null) ?? undefined }] };
+      n[idx] = { ...line, items: [...line.items, { code: posConflict.code, weight: posConflict.weight, fromExcel: posConflict.fromExcel, position: posConflict.position, wagonId: LS.get<string|null>(skRef("hgr_wagonId"), null) ?? undefined }] };
       return n;
     });
     setPosConflict(null);
@@ -442,6 +460,25 @@ export default function Hangar({ dark }: HangarProps) {
 
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
+  /* ── Extra lines (beyond A–Z) ─────────────────────────────────── */
+  const [addingExtraLine, setAddingExtraLine] = useState(false);
+  const [extraLineName,   setExtraLineName]   = useState("");
+  const extraLineInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (addingExtraLine) extraLineInputRef.current?.focus(); }, [addingExtraLine]);
+
+  const LETTERS_AZ = new Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""));
+  const extraLines = lines.filter((l) => !LETTERS_AZ.has(l.name.toUpperCase()) || l.name.length > 1);
+
+  const confirmExtraLine = () => {
+    const name = extraLineName.trim();
+    if (!name) { setAddingExtraLine(false); return; }
+    const existing = lines.find((l) => l.name === name);
+    if (existing) { setSelectedId(existing.id); }
+    else { const l: HangarLine = { id: newId(), name, items: [] }; setLines((p) => [...p, l]); setSelectedId(l.id); }
+    setExtraLineName("");
+    setAddingExtraLine(false);
+  };
+
   /* ── Line management ─────────────────────────────────────────── */
   const selectOrCreateLetter = (letter: string) => {
     const existing = lines.find((l) => l.name === letter);
@@ -485,14 +522,19 @@ export default function Hangar({ dark }: HangarProps) {
   const allItems = lines.flatMap((l) => l.items);
   const wagonSummaryRaw = wagons.map((w) => {
     const items = allItems.filter((it) => it.wagonId === w.id);
+    const dechCount: Record<string, number> = {};
+    for (const it of items) { if (it.dechargement) dechCount[it.dechargement] = (dechCount[it.dechargement] ?? 0) + 1; }
+    const mainDechargement = Object.entries(dechCount).sort((a,b) => b[1]-a[1])[0]?.[0] ?? "";
     return {
       ...w,
       scanned: items.length,
       weight:  items.reduce((s, it) => s + (it.weight ?? 0), 0),
       hasNull: items.some((it) => it.weight === null),
       done:    w.coilCount > 0 && items.length >= w.coilCount,
+      mainDechargement,
     };
   });
+  const wagonDechMap = new Map(wagonSummaryRaw.map((w) => [w.id, w.mainDechargement]));
   const wagonSummary = wagonSortAsc === null ? wagonSummaryRaw
     : [...wagonSummaryRaw].sort((a,b) => wagonSortAsc
         ? a.serial.localeCompare(b.serial)
@@ -540,68 +582,76 @@ export default function Hangar({ dark }: HangarProps) {
       <div style={{ maxWidth: 675, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+        {/* Title row */}
         <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0 }}>
           🏭 Hangar
         </h2>
 
-        {/* F12 / QAA toggle */}
-        <button
-          onClick={() => setF12Mode((v) => !v)}
-          title={f12Mode ? "Mode F12 : chaque scan → {nom} up + {nom} down" : "Mode QAA : scan normal"}
-          style={{
-            display: "flex", alignItems: "center", gap: 0,
-            padding: 0, border: `1px solid ${f12Mode ? accent : border}`,
-            borderRadius: 20, overflow: "hidden", cursor: "pointer",
-            background: "transparent", flexShrink: 0,
-            fontSize: isMobile ? 12 : 10, fontFamily: MONO,
-          }}
-        >
-          <span style={{
-            padding: isMobile ? "7px 11px" : "4px 9px",
-            background: !f12Mode ? (dark ? accent + "33" : accent + "22") : "transparent",
-            color: !f12Mode ? accent : muted, fontWeight: !f12Mode ? 700 : 400,
-            transition: "background 0.2s, color 0.2s",
-          }}>QAA</span>
-          <span style={{
-            padding: isMobile ? "7px 11px" : "4px 9px",
-            background: f12Mode ? (dark ? accent + "33" : accent + "22") : "transparent",
-            color: f12Mode ? accent : muted, fontWeight: f12Mode ? 700 : 400,
-            transition: "background 0.2s, color 0.2s",
-          }}>F12</span>
-        </button>
+        {/* Controls row: site pill + reload + Réf/Poids + Export */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* QAA / F12 pill toggle */}
+          <button
+            onClick={() => setF12Mode((v) => !v)}
+            title={f12Mode ? "Site F12 — cliquer pour basculer vers QAA" : "Site QAA — cliquer pour basculer vers F12"}
+            style={{
+              display: "flex", alignItems: "center", gap: 0,
+              padding: 0, border: `1px solid ${accent}`,
+              borderRadius: 20, overflow: "hidden", cursor: "pointer",
+              background: "transparent", flexShrink: 0,
+              fontSize: isMobile ? 12 : 10, fontFamily: MONO,
+            }}
+          >
+            <span style={{
+              padding: isMobile ? "7px 11px" : "4px 9px",
+              background: !f12Mode ? accent+"33" : "transparent",
+              color: !f12Mode ? (dark ? "#f97316" : "#f97316") : muted,
+              fontWeight: !f12Mode ? 700 : 400,
+              transition: "background 0.2s, color 0.2s",
+            }}>QAA</span>
+            <span style={{
+              padding: isMobile ? "7px 11px" : "4px 9px",
+              background: f12Mode ? accent+"33" : "transparent",
+              color: f12Mode ? (dark ? "#fca5a5" : "#ef4444") : muted,
+              fontWeight: f12Mode ? 700 : 400,
+              transition: "background 0.2s, color 0.2s",
+            }}>F12</span>
+          </button>
 
-        <button onClick={reloadXl}
-          style={{ ...btnBase, background: "transparent", border: `1px solid ${border}`, color: muted }}>
-          ↺ recharger
-        </button>
-        {xlHeaders.length > 0 && (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Réf. :</span>
-              <select value={codeColIdx} onChange={(e) => setCodeColIdx(Number(e.target.value))}
-                style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
-                  background: surface, border: `1px solid ${border}`, color: text }}>
-                {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
-              </select>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Poids :</span>
-              <select value={wtColIdx} onChange={(e) => setWtColIdx(Number(e.target.value))}
-                style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
-                  background: surface, border: `1px solid ${border}`, color: text }}>
-                {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
-              </select>
-            </div>
-          </>
-        )}
-        {xlHeaders.length === 0 && (
-          <span style={{ fontSize: isMobile ? 13 : 10, color: amber }}>⚠ Aucun fichier chargé dans Pointage</span>
-        )}
-        <button onClick={exportXLSX}
-          style={{ ...btnBase, marginLeft: "auto", background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>
-          ↓ Export
-        </button>
+          <button onClick={reloadXl}
+            style={{ ...btnBase, background: "transparent", border: `1px solid ${border}`, color: muted }}>
+            ↺ recharger
+          </button>
+
+          {xlHeaders.length > 0 && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Réf. :</span>
+                <select value={codeColIdx} onChange={(e) => setCodeColIdx(Number(e.target.value))}
+                  style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
+                    background: surface, border: `1px solid ${border}`, color: text }}>
+                  {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: isMobile ? 13 : 10, color: muted }}>Poids :</span>
+                <select value={wtColIdx} onChange={(e) => setWtColIdx(Number(e.target.value))}
+                  style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "10px 8px" : "3px 6px", borderRadius: 3,
+                    background: surface, border: `1px solid ${border}`, color: text }}>
+                  {xlHeaders.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+          {xlHeaders.length === 0 && (
+            <span style={{ fontSize: isMobile ? 13 : 10, color: amber }}>⚠ Aucun fichier chargé dans Pointage</span>
+          )}
+
+          <button onClick={exportXLSX}
+            style={{ ...btnBase, marginLeft: "auto", background: accent+"22", border: `1px solid ${accent}`, color: accent, fontWeight: 700 }}>
+            ↓ Export
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexDirection: "column" }}>
@@ -641,6 +691,61 @@ export default function Hangar({ dark }: HangarProps) {
                   </button>
                 );
               })}
+              {/* Extra lines below Z */}
+              {extraLines.map((el) => {
+                const isActive = selectedLine?.id === el.id;
+                const hasContent = el.items.length > 0;
+                return (
+                  <button key={el.id}
+                    onClick={() => setSelectedId(el.id)}
+                    title={el.name}
+                    style={{
+                      fontFamily: MONO, fontSize: isMobile ? 10 : 7, fontWeight: isActive ? 700 : 600,
+                      width: isMobile ? 32 : 22, flex: "0 0 auto",
+                      padding: "2px 1px", lineHeight: 1, borderRadius: 3, cursor: "pointer",
+                      background: isActive ? accent+"33" : (hasContent ? (dark?"#1e1e1e":"#e8e8e8") : "transparent"),
+                      border: isActive ? `1px solid ${accent}` : `1px solid ${border}`,
+                      color: isActive ? accent : (hasContent ? text : muted),
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                    {el.name.slice(0, 4)}
+                  </button>
+                );
+              })}
+
+              {/* + button / inline input */}
+              {addingExtraLine ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:2, marginTop:2 }}>
+                  <input
+                    ref={extraLineInputRef}
+                    value={extraLineName}
+                    onChange={(e) => setExtraLineName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmExtraLine(); if (e.key === "Escape") { setAddingExtraLine(false); setExtraLineName(""); } }}
+                    placeholder="nom"
+                    style={{ fontFamily:MONO, fontSize: isMobile ? 11 : 8, width: isMobile ? 32 : 22,
+                      padding:"2px 3px", borderRadius:3, border:`1px solid ${accent}`,
+                      background:"transparent", color:text, outline:"none" }}
+                  />
+                  <button onClick={confirmExtraLine}
+                    style={{ fontFamily:MONO, fontSize: isMobile ? 10 : 8, width: isMobile ? 32 : 22,
+                      padding:"1px 0", borderRadius:3, cursor:"pointer",
+                      background: accent+"33", border:`1px solid ${accent}`, color:accent, fontWeight:700 }}>
+                    ✓
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingExtraLine(true)}
+                  title="Créer une ligne supplémentaire"
+                  style={{ fontFamily:MONO, fontSize: isMobile ? 16 : 12, fontWeight:700,
+                    width: isMobile ? 32 : 22, flex:"0 0 auto",
+                    padding:0, lineHeight:1, borderRadius:3, cursor:"pointer",
+                    background:"transparent", border:`1px dashed ${border}`, color:muted,
+                  }}>
+                  +
+                </button>
+              )}
+
               {/* Déchargement hover overlay */}
               {hoveredLetter && (() => {
                 const hovLine = lines.find((l) => l.name === hoveredLetter);
@@ -734,9 +839,9 @@ export default function Hangar({ dark }: HangarProps) {
                       zIndex: hoveredWagonBtn===w.id ? 20 : 1,
                       transform: hoveredWagonBtn===w.id ? "scale(2.5) translateX(-26%)" : "scale(1)",
                       transition:"transform 0.12s",
-                      background: isSel ? accent+"33" : done ? (dark?"#0a200f":"#dcfce7") : (hoveredWagonBtn===w.id ? surface : (dark?"#1e1e1e":"#e8e8e8")),
-                      border: isSel ? `1px solid ${accent}` : done ? `1px solid ${dark?"#4ade80":"#16a34a"}` : `1px solid ${border}`,
-                      color: isSel ? accent : done ? (dark?"#86efac":"#166534") : text,
+                      background: isSel ? accent+"33" : (() => { const d = wagonDechMap.get(w.id); return d ? dechargementColor(d, dark).bg : (done ? (dark?"#0a200f":"#dcfce7") : (hoveredWagonBtn===w.id ? surface : (dark?"#1e1e1e":"#e8e8e8"))); })(),
+                      border: isSel ? `1px solid ${accent}` : (() => { const d = wagonDechMap.get(w.id); return `1px solid ${d ? dechargementColor(d, dark).border : (done ? (dark?"#4ade80":"#16a34a") : border)}`; })(),
+                      color: isSel ? accent : (() => { const d = wagonDechMap.get(w.id); return d ? dechargementColor(d, dark).color : (done ? (dark?"#86efac":"#166534") : text); })(),
                     }}>
                     <span style={{ overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%",
                       whiteSpace:"nowrap", display:"block", fontSize: isMobile ? 11 : 8 }}>
@@ -974,14 +1079,19 @@ export default function Hangar({ dark }: HangarProps) {
                             {selectedLine.items.map((it, i) => {
                               const isVide = it.code.startsWith("∅");
                               const wag = showWagon ? wagons.find((w) => w.id === it.wagonId) : undefined;
+                              const itDc = it.dechargement ? dechargementColor(it.dechargement, dark) : null;
+                              const wagDech = wag ? (wagonDechMap.get(wag.id) ?? "") : "";
+                              const wagDc = wagDech ? dechargementColor(wagDech, dark) : null;
                               return (
-                              <tr key={it.code}>
+                              <tr key={it.code} style={{ background: itDc ? itDc.bg : undefined }}>
                                 <td style={tdS()}><span style={{color: muted}}>{i+1}</span></td>
                                 {showWagon && (
                                   <td style={tdS()}>
                                     {wag
                                       ? <span style={{ fontSize:9, padding:"1px 6px", borderRadius:8,
-                                          background: accent+"22", border:`1px solid ${accent}`, color:accent,
+                                          background: wagDc ? wagDc.bg : accent+"22",
+                                          border: wagDc ? `1px solid ${wagDc.border}` : `1px solid ${accent}`,
+                                          color: wagDc ? wagDc.color : accent,
                                           fontFamily:MONO, whiteSpace:"nowrap" }}>{wag.serial}</span>
                                       : <span style={{ color:muted }}>—</span>}
                                   </td>
@@ -1047,10 +1157,12 @@ export default function Hangar({ dark }: HangarProps) {
               </tr>
             </thead>
             <tbody>
-              {wagonSummary.map((w) => (
+              {wagonSummary.map((w) => {
+                const wSumDc = w.mainDechargement ? dechargementColor(w.mainDechargement, dark) : null;
+                return (
                 <tr key={w.id}
                   onClick={() => setSelectedWagonId(w.id === selectedWagonId ? null : w.id)}
-                  style={{ cursor:"pointer", background: w.id===selectedWagonId ? accent+"28" : (w.done ? (dark?"#0a1a0a":"#f0fff0") : undefined) }}>
+                  style={{ cursor:"pointer", background: w.id===selectedWagonId ? accent+"28" : wSumDc ? wSumDc.bg : (w.done ? (dark?"#0a1a0a":"#f0fff0") : undefined) }}>
                   <td style={{...tdS(), fontWeight:700, color: w.id===selectedWagonId ? accent : text}}>{w.serial}</td>
                   <td style={tdS()}>{w.port ?? <span style={{color:muted}}>—</span>}</td>
                   <td style={tdS(true)}>{w.coilCount > 0 ? w.coilCount : "∞"}</td>
@@ -1062,7 +1174,8 @@ export default function Hangar({ dark }: HangarProps) {
                   </td>
                   <td style={{...tdS(true), color: w.hasNull ? amber : text}}>{fmtW(w.weight)}{w.hasNull?" *":""}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           </div>
@@ -1250,11 +1363,30 @@ export default function Hangar({ dark }: HangarProps) {
           <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:10,
             padding:"24px 20px", width:"min(420px, calc(100vw - 32px))", fontFamily:MONO, boxShadow:"0 8px 40px rgba(0,0,0,0.4)", boxSizing:"border-box" as const }}>
             <div style={{ fontSize: isMobile ? 14 : 10, color:muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.12em", marginBottom:12 }}>
-              Réf. non trouvée dans Excel
+              {pending.code.startsWith("∅") ? "∅ Emplacement vide" : "Réf. non trouvée dans Excel"}
             </div>
             <div style={{ fontSize: isMobile ? 15 : 13, fontWeight:700, color:text, wordBreak:"break-all", marginBottom:14 }}>
-              {pending.code}
+              {pending.code.startsWith("∅") ? "∅ vide" : pending.code}
             </div>
+            {/* Wagon selector */}
+            {wagons.length > 0 && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize: isMobile ? 13 : 10, color:muted, marginBottom:5 }}>Wagon <span style={{fontWeight:400}}>(optionnel)</span></div>
+                <select value={pending.wagonId}
+                  onChange={(e) => setPending({ ...pending, wagonId: e.target.value })}
+                  style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 15 : 12,
+                    padding: isMobile ? "10px 10px" : "7px 10px", borderRadius:5,
+                    background:bg, border:`1px solid ${pending.wagonId ? accent : border}`, color:text, outline:"none",
+                    boxSizing:"border-box" as const }}>
+                  <option value="">— Sans wagon —</option>
+                  {wagons.map((wg) => {
+                    const wgDech = wagonDechMap.get(wg.id) ?? "";
+                    const wgDc = wgDech ? dechargementColor(wgDech, dark) : null;
+                    return <option key={wg.id} value={wg.id} style={{ background: wgDc ? wgDc.bg : undefined }}>{wg.serial}{wg.coilCount>0 ? ` (${allItems.filter(it=>it.wagonId===wg.id).length}/${wg.coilCount})` : ""}</option>;
+                  })}
+                </select>
+              </div>
+            )}
             {/* Position slot grid */}
             <div style={{ marginBottom:14 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
@@ -1312,7 +1444,8 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ marginBottom:14 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
                 <span style={{ fontSize: isMobile ? 13 : 10, color:muted }}>Poids (kg) :</span>
-                {pending.weight.trim() === "" && <span style={{ fontSize: isMobile ? 11 : 9, color:"#ef4444" }}>obligatoire</span>}
+                {pending.weight.trim() === "" && !pending.code.startsWith("∅") && <span style={{ fontSize: isMobile ? 11 : 9, color:"#ef4444" }}>obligatoire</span>}
+                {pending.code.startsWith("∅") && <span style={{ fontSize: isMobile ? 11 : 9, color:muted }}>(optionnel)</span>}
               </div>
               <input autoFocus value={pending.weight} inputMode="decimal"
                 onChange={(e) => setPending({ ...pending, weight: e.target.value })}
@@ -1351,9 +1484,10 @@ export default function Hangar({ dark }: HangarProps) {
               )}
             </div>
             {(() => {
-              const missingPos = pending.position === "";
-              const missingWt  = pending.weight.trim() === "";
-              const canAdd = !missingPos && !missingWt;
+              const missingPos  = pending.position === "";
+              const missingWt   = pending.weight.trim() === "";
+              const isVidePend  = pending.code.startsWith("∅");
+              const canAdd = !missingPos && (isVidePend || !missingWt);
               return (
                 <div style={{ display:"flex", gap:10 }}>
                   <button onClick={confirmPending} disabled={!canAdd}
@@ -1533,6 +1667,42 @@ export default function Hangar({ dark }: HangarProps) {
                 Modifier
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Wagon overcount modal ────────────────────────────────── */}
+      {overWagonWarning && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", display:"flex",
+          alignItems:"center", justifyContent:"center", zIndex:1150 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOverWagonWarning(null); }}>
+          <div style={{ background:surface, border:`2px solid ${danger}`, borderRadius:10,
+            padding:"24px 20px", width:"min(380px, calc(100vw - 32px))", fontFamily:MONO,
+            boxShadow:"0 8px 40px rgba(0,0,0,0.5)", boxSizing:"border-box" as const }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+              <span style={{ fontSize:22 }}>🚂⚠️</span>
+              <span style={{ fontSize: isMobile ? 15 : 12, fontWeight:700, color:danger }}>Wagon saturé</span>
+            </div>
+            <div style={{ fontSize: isMobile ? 14 : 12, color:text, marginBottom:8 }}>
+              Wagon <span style={{ fontWeight:700, color:accent }}>{overWagonWarning.serial}</span>
+            </div>
+            <div style={{ padding:"10px 14px", borderRadius:6, background:dark?"#1c0505":"#fff1f2",
+              border:`1px solid ${danger}`, marginBottom:18 }}>
+              <div style={{ fontSize: isMobile ? 13 : 11, color:danger, fontWeight:700 }}>
+                {overWagonWarning.scanned} bobines scannées
+              </div>
+              <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginTop:2 }}>
+                Capacité : {overWagonWarning.expected}
+              </div>
+            </div>
+            <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:16 }}>
+              Vérifiez le numéro de wagon ou modifiez la capacité attendue.
+            </div>
+            <button onClick={() => setOverWagonWarning(null)}
+              style={{ ...btnBase, width:"100%", padding: isMobile ? "12px" : "9px",
+                background:"transparent", border:`1px solid ${border}`, color:muted, fontWeight:700 }}>
+              Compris
+            </button>
           </div>
         </div>
       )}
