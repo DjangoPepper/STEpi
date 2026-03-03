@@ -50,15 +50,18 @@ export default function Scane({ dark }: ScaneProps) {
 
   /* ── Camera / detector ───────────────────────────────────────── */
   const videoRef      = useRef<HTMLVideoElement>(null);
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
   const streamRef     = useRef<MediaStream | null>(null);
-  const detectorRef   = useRef<{ detect(src: HTMLVideoElement): Promise<BarcodeDetectorResult[]> } | null>(null);
+  const detectorRef   = useRef<{ detect(src: HTMLVideoElement | ImageBitmap): Promise<BarcodeDetectorResult[]> } | null>(null);
   const rafRef        = useRef<number | null>(null);
   const zxingReader   = useRef<BrowserMultiFormatReader | null>(null);
   const zxingControls = useRef<{ stop(): void } | null>(null);
 
-  const [cameraOn,    setCameraOn]    = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [useNative,   setUseNative]   = useState<boolean>(false);
+  const [cameraOn,      setCameraOn]      = useState(false);
+  const [cameraError,   setCameraError]   = useState<string | null>(null);
+  const [useNative,     setUseNative]     = useState<boolean>(false);
+  const [frozenDataUrl, setFrozenDataUrl] = useState<string | null>(null);
+  const [isFreezing,    setIsFreezing]    = useState(false);
 
   /* ── Scan feedback ───────────────────────────────────────────── */
   const [lastScan,   setLastScan]   = useState<ScanResult | null>(null);
@@ -140,6 +143,11 @@ export default function Scane({ dark }: ScaneProps) {
 
   /* ── Match & assign ──────────────────────────────────────────── */  /* Stable ref so ZXing callback always calls latest version without stale closure */
   const assignMatchRef = useRef<(raw: string) => void>(() => {});  const assignMatch = useCallback((raw: string) => {
+    /* ── S-prefix filter: ignore codes not starting with 'S' ── */
+    if (!raw.toUpperCase().startsWith('S')) return;
+    /* Strip leading 'S' for Excel lookup; keep raw for display */
+    const lookup = raw.slice(1);
+
     const fHeaders  = LS.get<string[]>              ("ptg_headers",       []);
     const fRows     = LS.get<CellValue[][]>         ("ptg_rows",          []);
     const fDests    = LS.get<DestConfig[]>          ("ptg_destinations",  []);
@@ -164,7 +172,7 @@ export default function Scane({ dark }: ScaneProps) {
 
     fRows.forEach((row, ri) => {
       for (const ci of cols) {
-        if (String(row[ci] ?? "").trim() === raw.trim()) {
+        if (String(row[ci] ?? "").trim() === lookup.trim()) {
           matched.push(ri);
           if (!matchedCol) matchedCol = fHeaders[ci] ?? `Col ${ci+1}`;
           break;
@@ -180,16 +188,55 @@ export default function Scane({ dark }: ScaneProps) {
       setFlashColor(dest.color);
       setScanCount((n) => n + matched.length);
       setLastScan({ rawValue: raw, matched: true, rowIndices: matched, destName: dest.name, colHeader: matchedCol });
+      stopCamera();
+      if (typeof navigator.vibrate === "function") navigator.vibrate(300);
     } else {
       setFlashColor("#b45309");
       const colLabel = searchColIdx === -1 ? "toutes colonnes" : (fHeaders[searchColIdx] ?? `Col ${searchColIdx+1}`);
       setLastScan({ rawValue: raw, matched: false, rowIndices: [], destName: dest.name, colHeader: colLabel });
     }
     setTimeout(() => setFlashColor(null), 800);
-  }, [searchColIdx]);
+  }, [searchColIdx, stopCamera]);
 
   /* Keep ref in sync so ZXing callback is always fresh */
   useEffect(() => { assignMatchRef.current = assignMatch; }, [assignMatch]);
+
+  /* ── Freeze-frame capture & detect ──────────────────────────────── */
+  const captureFrame = useCallback(async () => {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setFrozenDataUrl(canvas.toDataURL("image/jpeg", 0.92));
+    setIsFreezing(true);
+    try {
+      let foundCode: string | null = null;
+      if (useNative && detectorRef.current) {
+        const bitmap = await createImageBitmap(canvas);
+        const results = await detectorRef.current.detect(bitmap);
+        bitmap.close();
+        if (results.length > 0) foundCode = results[0].rawValue;
+      } else {
+        try {
+          const result = await new BrowserMultiFormatReader().decodeFromCanvas(canvas);
+          if (result) foundCode = result.getText();
+        } catch { /* no barcode in frame */ }
+      }
+      if (foundCode) {
+        assignMatchRef.current(foundCode);
+        setTimeout(() => setFrozenDataUrl(null), 1500);
+      } else {
+        setTimeout(() => { setFrozenDataUrl(null); setIsFreezing(false); }, 2000);
+      }
+    } catch {
+      setFrozenDataUrl(null);
+    }
+    setIsFreezing(false);
+  }, [useNative]);
 
   /* ── Native scan loop (BarcodeDetector only) ─────────────────────── */
   useEffect(() => {
@@ -223,76 +270,95 @@ export default function Scane({ dark }: ScaneProps) {
   const selectedDest = destinations.find((d) => d.id === selectedDestId) ?? null;
 
   return (
-    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box", overflowX: "hidden" }}>
+    <div style={{ fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
+      <style>{`@keyframes scan-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0 }}>
-          ⬛ Scan Code-barres / QR
+      {/* Header + status — une seule ligne */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+        <h2 style={{ fontSize: isMobile ? 17 : 13, letterSpacing: isMobile ? 0 : "0.18em", textTransform: isMobile ? "none" : "uppercase", color: accent, margin: 0, whiteSpace: "nowrap" }}>
+          ⬛ Scan
         </h2>
-        <button onClick={reloadData}
-          style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "10px 14px" : "4px 10px",
-            background: "transparent", border: `1px solid ${border}`, borderRadius: 3, color: muted, cursor: "pointer" }}>
-          ↺ Actualiser données
-        </button>
-      </div>
-
-      {/* Engine badge */}
-      {cameraOn && (
-        <div style={{ marginBottom: 10, display: "inline-block", padding: "3px 10px",
-          background: useNative ? (dark?"#200a38":"#f3e8ff") : (dark?"#0f0a28":"#ede9fe"),
-          border: `1px solid ${useNative ? accent : (dark?"#a78bfa":"#6d28d9")}`,
-          borderRadius: 4, fontSize: isMobile ? 13 : 10, color: useNative ? accent : (dark?"#a78bfa":"#6d28d9") }}>
-          {useNative ? "⚡ BarcodeDetector (natif)" : "⚙ ZXing (compatible tous navigateurs)"}
-        </div>
-      )}
-
-      {/* Status chips */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
-        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11, fontWeight: 700,
-          background: selectedDest ? selectedDest.color + "22" : (dark?"#1a1a1a":"#f0f0f0"),
-          border: `1px solid ${selectedDest ? selectedDest.color : border}`,
-          color: selectedDest ? selectedDest.color : muted }}>
-          {selectedDest ? `▶ ${selectedDest.name}` : "— Aucune destination —"}
-        </div>
-        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11,
-          background: dark?"#1a1a1a":"#f0f0f0", border: `1px solid ${border}`, color: accent }}>
-          {scanCount} affectation{scanCount !== 1 ? "s" : ""}
-        </div>
-        <div style={{ padding: isMobile ? "10px 16px" : "5px 14px", borderRadius: 4, fontSize: isMobile ? 14 : 11,
-          background: dark?"#1a1a1a":"#f0f0f0", border: `1px solid ${border}`, color: muted }}>
-          {rows.length} ligne{rows.length !== 1 ? "s" : ""} Excel
-        </div>
-      </div>
-
-      {/* Column selector */}
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: isMobile ? 14 : 11, color: muted, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.1em" }}>Colonne :</span>
+        {/* Destination */}
+        {destinations.length > 0 ? (
+          <select
+            value={selectedDestId ?? ""}
+            onChange={(e) => { const id = e.target.value || null; setSelectedDestId(id); LS.set("ptg_selectedDestId", id); }}
+            style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "8px 10px" : "4px 8px",
+              borderRadius: 4, cursor: "pointer",
+              background: selectedDest ? selectedDest.color + "22" : (dark ? "#1a1a1a" : "#f0f0f0"),
+              border: `1px solid ${selectedDest ? selectedDest.color : border}`,
+              color: selectedDest ? selectedDest.color : muted, fontWeight: 700, outline: "none" }}>
+            <option value="">— Destination —</option>
+            {destinations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        ) : (
+          <span style={{ fontSize: isMobile ? 13 : 10, color: muted, whiteSpace: "nowrap" }}>— Destination —</span>
+        )}
+        {/* Column select */}
         <select value={searchColIdx} onChange={(e) => setSearchColIdx(Number(e.target.value))}
-          style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 11, padding: isMobile ? "10px 10px" : "4px 8px", borderRadius: 4,
+          style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, padding: isMobile ? "8px 8px" : "4px 8px", borderRadius: 4,
             background: surface, border: `1px solid ${border}`, color: text, cursor: "pointer" }}>
           <option value={-1}>Toutes les colonnes</option>
           {headers.map((h, i) => <option key={i} value={i}>{h || `Col ${i+1}`}</option>)}
         </select>
-        {rows.length === 0 && (
-          <span style={{ fontSize: isMobile ? 14 : 11, color: muted }}>— aucun fichier chargé dans Pointage</span>
+        {/* Counts */}
+        <span style={{ fontSize: isMobile ? 13 : 10, color: accent, whiteSpace: "nowrap" }}>
+          {scanCount} affect.
+        </span>
+        <span style={{ fontSize: isMobile ? 13 : 10, color: muted, whiteSpace: "nowrap" }}>
+          {rows.length} lignes
+        </span>
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+        {/* Engine badge (inline when camera on) */}
+        {cameraOn && (
+          <span style={{ padding: "3px 8px",
+            background: useNative ? (dark?"#200a38":"#f3e8ff") : (dark?"#0f0a28":"#ede9fe"),
+            border: `1px solid ${useNative ? accent : (dark?"#a78bfa":"#6d28d9")}`,
+            borderRadius: 4, fontSize: isMobile ? 12 : 9, color: useNative ? accent : (dark?"#a78bfa":"#6d28d9"), whiteSpace: "nowrap" }}>
+            {useNative ? "⚡ natif" : "⚙ ZXing"}
+          </span>
         )}
+        <button onClick={reloadData}
+          style={{ fontFamily: MONO, fontSize: isMobile ? 14 : 10, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "10px 14px" : "4px 10px",
+            background: "transparent", border: `1px solid ${border}`, borderRadius: 3, color: muted, cursor: "pointer", whiteSpace: "nowrap" }}>
+          ↺ Actualiser
+        </button>
       </div>
 
+
+
       {/* Camera + Controls */}
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row" }}>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", flexDirection: "column" }}>
+
+        {/* Hidden canvas for freeze-frame */}
+        <canvas ref={canvasRef} style={{ display: "none" }} />
 
         {/* Video */}
         <div style={{ position: "relative", borderRadius: 8, overflow: "hidden",
-          border: `2px solid ${flashColor ?? border}`,
-          boxShadow: flashColor ? `0 0 20px ${flashColor}55` : "none",
+          border: `2px solid ${frozenDataUrl ? accent : (flashColor ?? border)}`,
+          boxShadow: (frozenDataUrl || flashColor) ? `0 0 20px ${frozenDataUrl ? accent : flashColor}55` : "none",
           transition: "border-color 0.15s, box-shadow 0.15s",
-          width: isMobile ? "100%" : 480, aspectRatio: isMobile ? "4/3" : undefined,
-          minHeight: isMobile ? undefined : 270,
+          width: "100%", aspectRatio: "4/3",
           background: dark ? "#0a0a0a" : "#ddd",
           display: "flex", alignItems: "center", justifyContent: "center" }}>
           <video ref={videoRef} playsInline muted
             style={{ width: "100%", height: "100%", display: cameraOn ? "block" : "none", objectFit: "cover" }} />
+          {/* Frozen frame overlay */}
+          {frozenDataUrl && (
+            <img src={frozenDataUrl} alt=""
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 5 }} />
+          )}
+          {/* Scanning spinner on freeze */}
+          {isFreezing && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 7, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              background: "rgba(0,0,0,0.45)", gap: 8 }}>
+              <div style={{ fontSize: 28, animation: "scan-pulse 1s ease infinite" }}>🔍</div>
+              <div style={{ color: "#fff", fontSize: isMobile ? 14 : 11, letterSpacing: "0.08em" }}>Analyse...</div>
+            </div>
+          )}
           {!cameraOn && (
             <div style={{ textAlign: "center", color: muted, fontSize: 12, padding: 20 }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>📷</div>
@@ -320,16 +386,40 @@ export default function Scane({ dark }: ScaneProps) {
         </div>
 
         {/* Right panel */}
-        <div style={{ flex: 1, minWidth: isMobile ? "unset" : 240, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
           <button onClick={cameraOn ? stopCamera : startCamera}
             style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 12, letterSpacing: isMobile ? 0 : "0.1em", padding: isMobile ? "14px 22px" : "10px 18px",
               background: cameraOn ? (dark?"#2d0a0a":"#fee2e2") : (dark?"#200a38":"#f3e8ff"),
               border: `1px solid ${cameraOn ? "#ef4444" : accent}`,
-
               borderRadius: 5, color: cameraOn ? "#ef4444" : accent,
               cursor: "pointer", fontWeight: 700 }}>
             {cameraOn ? "⏹ Arrêter la caméra" : "▶ Démarrer la caméra"}
           </button>
+
+          {/* Freeze-frame capture button */}
+          {cameraOn && !frozenDataUrl && (
+            <button onClick={captureFrame}
+              style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 12, letterSpacing: isMobile ? 0 : "0.1em",
+                padding: isMobile ? "14px 22px" : "10px 18px",
+                background: dark ? "#0a1a0d" : "#f0fdf4",
+                border: `1px solid ${dark?"#4ade80":"#16a34a"}`,
+                borderRadius: 5, color: dark ? "#4ade80" : "#16a34a",
+                cursor: "pointer", fontWeight: 700 }}>
+              📸 Capturer
+            </button>
+          )}
+          {/* Unfreeze button */}
+          {frozenDataUrl && !isFreezing && (
+            <button onClick={() => { setFrozenDataUrl(null); setIsFreezing(false); }}
+              style={{ fontFamily: MONO, fontSize: isMobile ? 15 : 12, letterSpacing: isMobile ? 0 : "0.1em",
+                padding: isMobile ? "14px 22px" : "10px 18px",
+                background: "transparent",
+                border: `1px solid ${border}`,
+                borderRadius: 5, color: muted,
+                cursor: "pointer" }}>
+              ↺ Libérer
+            </button>
+          )}
 
           {cameraError && (
             <div style={{ fontSize: 11, color: "#ef4444", padding: "8px 12px",
@@ -407,6 +497,7 @@ export default function Scane({ dark }: ScaneProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

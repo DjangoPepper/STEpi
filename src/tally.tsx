@@ -49,14 +49,14 @@ interface TallyRow {
 interface TallyProps { dark: boolean; }
 
 export default function Tally({ dark }: TallyProps) {
-  /* Theme */
-  const bg     = dark ? "#0d0d0d" : "#f5f5f5";
-  const surface = dark ? "#141414" : "#fff";
-  const text   = dark ? "#e8e8e0" : "#1a1a1a";
-  const accent = dark ? "#6ee7b7" : "#059669";
-  const muted  = dark ? "#555"    : "#888";
-  const border = dark ? "#222"    : "#ddd";
-  const hdrBg  = dark ? "#0b0b0b" : "#f0f0f0";
+  /* Theme — green (same style as Hangar/orange, but green) */
+  const bg      = dark ? "#040f06" : "#f0fdf4";
+  const surface = dark ? "#0a1a0d" : "#fff";
+  const text    = dark ? "#bbf7d0" : "#14532d";
+  const accent  = dark ? "#22c55e" : "#16a34a";
+  const muted   = dark ? "#166534" : "#166534";
+  const border  = dark ? "#14532d" : "#bbf7d0";
+  const hdrBg   = dark ? "#020a04" : "#dcfce7";
 
   const vw       = useWindowWidth();
   const isMobile = vw < 640;
@@ -245,7 +245,8 @@ export default function Tally({ dark }: TallyProps) {
   });
 
   return (
-    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box" }}>
+    <div style={{ fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <span style={{ fontSize: isMobile ? 17 : 11, letterSpacing: isMobile ? 0 : "0.2em", textTransform: isMobile ? "none" : "uppercase", color: accent, fontWeight: 600 }}>
@@ -703,6 +704,7 @@ export default function Tally({ dark }: TallyProps) {
           </table>}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -4,10 +4,12 @@ import Pointage from "./pointage";
 import Scane from "./scane";
 import Tally from "./tally";
 import Hangar from "./hangar";
+import Train from "./train";
+import Plan from "./plan";
 import type { PointageData } from "./types";
 import { useWindowWidth } from "./useWindowWidth";
 
-type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar";
+type TabId = "cleaner" | "pointage" | "scan" | "tally" | "hangar" | "train" | "plan";
 
 const TABS: { id: TabId; label: string; color: [string,string] }[] = [
   { id: "cleaner",  label: "Cleaner",  color: ["#f472b6","#db2777"] },
@@ -15,6 +17,8 @@ const TABS: { id: TabId; label: string; color: [string,string] }[] = [
   { id: "scan",     label: "Scan",     color: ["#a78bfa","#7c3aed"] },
   { id: "tally",    label: "Tally",    color: ["#4ade80","#16a34a"] },
   { id: "hangar",   label: "Hangar",   color: ["#fb923c","#ea580c"] },
+  { id: "train",    label: "Train",    color: ["#fbbf24","#d97706"] },
+  { id: "plan",     label: "Plan",     color: ["#e2e8f0","#6b7280"] },
 ];
 
 const MONO = "'IBM Plex Mono', 'Fira Mono', monospace";
@@ -91,7 +95,7 @@ export default function App() {
       </nav>
 
       {/* ── Page content ────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: "auto" }}>
+      <main style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
         {active === "cleaner" && (
           <ExcelCleaner
             dark={dark}
@@ -103,6 +107,8 @@ export default function App() {
         {active === "scan"     && <Scane dark={dark} />}
         {active === "tally"    && <Tally dark={dark} />}
         {active === "hangar"   && <Hangar dark={dark} />}
+        {active === "train"   && <Train  dark={dark} />}
+        {active === "plan"    && <Plan   dark={dark} />}
       </main>
     </div>
   );

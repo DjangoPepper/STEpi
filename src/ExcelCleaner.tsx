@@ -506,7 +506,7 @@ export default function ExcelCleaner({ dark, onDarkToggle: _onDarkToggle, onSend
         />
       )}
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "16px 10px" : "32px 24px" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: isMobile ? "16px 10px" : "32px 24px" }}>
         {/* Top bar */}
         <div style={{ marginBottom: isMobile ? 16 : 32, borderBottom: `1px solid ${t.border}`, paddingBottom: isMobile ? 12 : 24, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 8 }}>
           <div>

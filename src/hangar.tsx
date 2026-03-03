@@ -62,7 +62,6 @@ export default function Hangar({ dark }: HangarProps) {
   /* ── Breakpoints ─────────────────────────────────────────────── */
   const vw        = useWindowWidth();
   const isMobile  = vw < 640;
-  const isTablet  = vw >= 640 && vw < 1024;
 
   /* ── Excel data ──────────────────────────────────────────────── */
   const [xlHeaders,  setXlHeaders]  = useState<string[]>([]);
@@ -524,7 +523,7 @@ export default function Hangar({ dark }: HangarProps) {
   };
 
   /* ── Styles ──────────────────────────────────────────────────── */
-  const pad     = isMobile ? "12px 10px" : isTablet ? "16px 18px" : "20px 28px";
+  const pad     = isMobile ? "14px 10px" : "24px 28px";
   const btnBase: React.CSSProperties = { fontFamily: MONO, fontSize: isMobile ? 15 : 11, letterSpacing: isMobile ? 0 : "0.08em",
     padding: isMobile ? "12px 16px" : "4px 10px", borderRadius: 4, cursor: "pointer", border: "none" };
   const thS: React.CSSProperties = { padding: isMobile ? "10px 12px" : "5px 12px", textAlign: "left", fontSize: isMobile ? 13 : 10,
@@ -535,7 +534,8 @@ export default function Hangar({ dark }: HangarProps) {
     borderBottom: `1px solid ${border}`, whiteSpace: "nowrap" });
 
   return (
-    <div style={{ padding: pad, fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)", boxSizing: "border-box", maxWidth: "100%", overflowX: "hidden" }}>
+    <div style={{ fontFamily: MONO, color: text, background: bg, minHeight: "calc(100vh - 44px)" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: pad, boxSizing: "border-box", overflowX: "hidden" }}>
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
@@ -613,7 +613,9 @@ export default function Hangar({ dark }: HangarProps) {
             <div style={{ position:"relative", display:"flex", flexDirection:"column", gap:2, flexShrink:0, overflow:"visible" }}>
               {Array.from({length:26},(_,i)=>String.fromCharCode(65+i)).map((letter) => {
                 const isActiveLetter = selectedLine?.name === letter;
-                const hasLine = lines.some((l) => l.name === letter);
+                const lineObj = lines.find((l) => l.name === letter);
+                const hasLine = !!lineObj;
+                const hasContent = hasLine && (lineObj?.items ?? []).length > 0;
                 const isHov = hoveredLetter === letter;
                 return (
                   <button key={letter}
@@ -629,9 +631,9 @@ export default function Hangar({ dark }: HangarProps) {
                       zIndex: isHov ? 20 : 1,
                       transform: isHov ? "scale(2.5) translateX(28%)" : "scale(1)",
                       transition:"transform 0.12s",
-                      background: isActiveLetter ? accent+"33" : (hasLine ? (isHov ? surface : (dark?"#1e1e1e":"#e8e8e8")) : (isHov ? surface : "transparent")),
+                      background: isActiveLetter ? accent+"33" : (hasContent ? (isHov ? surface : (dark?"#1e1e1e":"#e8e8e8")) : (isHov ? surface : "transparent")),
                       border: isActiveLetter ? `1px solid ${accent}` : `1px solid ${border}`,
-                      color: isActiveLetter ? accent : (hasLine ? text : muted),
+                      color: isActiveLetter ? accent : (hasContent ? text : muted),
                     }}>
                     {letter}
                   </button>
@@ -661,23 +663,25 @@ export default function Hangar({ dark }: HangarProps) {
             {/* Camera frame */}
             <div style={{ position:"relative", borderRadius:8, overflow:"hidden",
               border:`2px solid ${flashColor ?? border}`,
-              boxShadow: flashColor ? `0 0 18px ${flashColor}55` : "none",
+              boxShadow: flashColor ? `0 0 20px ${flashColor}55` : "none",
               transition:"border-color 0.15s, box-shadow 0.15s",
               flex:1, aspectRatio:"4/3", background:dark?"#0a0a0a":"#ddd",
               display:"flex", alignItems:"center", justifyContent:"center" }}>
               <video ref={videoRef} playsInline muted
                 style={{ width:"100%", height:"100%", display:cameraOn?"block":"none", objectFit:"cover" }} />
-              {!cameraOn && <div style={{ textAlign:"center", color:muted, fontSize:12 }}><div style={{fontSize:32}}>📷</div><div>Caméra arrêtée</div></div>}
+              {!cameraOn && <div style={{ textAlign:"center", color:muted, fontSize:12, padding:20 }}><div style={{fontSize:40, marginBottom:8}}>📷</div><div>Caméra arrêtée</div></div>}
               {cameraOn && (
                 <div style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
-                  <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:170, height:170 }}>
-                    {(["tl","tr","bl","br"] as const).map((c,i) => (
-                      <div key={i} style={{ position:"absolute", width:18, height:18,
-                        ...(c==="tl"?{top:-2,left:-2,borderTop:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderTopLeftRadius:5}:{}),
-                        ...(c==="tr"?{top:-2,right:-2,borderTop:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderTopRightRadius:5}:{}),
-                        ...(c==="bl"?{bottom:-2,left:-2,borderBottom:`3px solid ${accent}`,borderLeft:`3px solid ${accent}`,borderBottomLeftRadius:5}:{}),
-                        ...(c==="br"?{bottom:-2,right:-2,borderBottom:`3px solid ${accent}`,borderRight:`3px solid ${accent}`,borderBottomRightRadius:5}:{}),
-                      }} />
+                  <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:200, height:200 }}>
+                    {[{t:-2,l:-2,bt:"borderTop",bl:"borderLeft",br:"borderTopLeftRadius"},
+                      {t:-2,r:-2,bt:"borderTop",bl:"borderRight",br:"borderTopRightRadius"},
+                      {b:-2,l:-2,bt:"borderBottom",bl:"borderLeft",br:"borderBottomLeftRadius"},
+                      {b:-2,r:-2,bt:"borderBottom",bl:"borderRight",br:"borderBottomRightRadius"}
+                    ].map((c,i) => (
+                      <div key={i} style={{ position:"absolute", width:22, height:22,
+                        top:c.t, left:c.l, bottom:c.b, right:c.r,
+                        [c.bt]:`3px solid ${accent}`, [c.bl]:`3px solid ${accent}`,
+                        [c.br]:6 } as React.CSSProperties} />
                     ))}
                   </div>
                 </div>
@@ -825,88 +829,81 @@ export default function Hangar({ dark }: HangarProps) {
             );
           })()}
 
-          {/* Row 3 : position slots 1–51 */}
+          {/* Row 3 : position slots 1–51 + slider */}
           {(() => {
+            const CHIP = isMobile ? 34 : 26;
+            const GAP  = 3;
+            const half = (CHIP + GAP) / 2;
+            const odds  = Array.from({length:26},(_,i)=>String(i*2+1));  /* 1,3,5…51 */
+            const evens = Array.from({length:25},(_,i)=>String(i*2+2));  /* 2,4,6…50 */
+            const chip = (s: string) => {
+              const isSel = qaaPosition === s;
+              const isOcc = occupiedPositions.has(s);
+              const isVide = videPositions.has(s);
+              return (
+                <div key={s} style={{ position:"relative", display:"inline-block" }}
+                  onMouseEnter={() => setHoveredChip(s)}
+                  onMouseLeave={() => setHoveredChip(null)}>
+                <button disabled={isOcc && !isSel}
+                  onClick={() => setQaaPosition(isSel ? "" : s)}
+                  title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
+                  style={{
+                    fontFamily:MONO, fontSize: isMobile ? 12 : 9,
+                    width:CHIP, height:CHIP, flexShrink:0,
+                    borderRadius:4, padding:0, lineHeight:1,
+                    cursor: isOcc && !isSel ? "not-allowed" : "pointer",
+                    border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
+                    background: isSel ? accent+"33"
+                      : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
+                      : (dark ? "#1a1a1a" : "#f0f0f0"),
+                    color: isSel ? accent : isOcc ? "#92400e" : muted,
+                    fontWeight: isSel ? 700 : 400,
+                    opacity: isOcc && !isSel ? 0.75 : 1,
+                  }}>{s}</button>
+                </div>
+              );
+            };
+            const hovItemGlobal = hoveredChip
+              ? (selectedLine?.items ?? []).find((it) => it.position === hoveredChip && occupiedPositions.has(hoveredChip))
+              : undefined;
             return (
               <div style={{ borderRadius:6, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
-                background: dark?"#071a0b":"#f0fdf4", padding:"8px 10px" }}>
+                background: dark?"#071a0b":"#f0fdf4", padding:"8px 10px", overflow:"hidden" }}>
                 <div style={{ fontSize: isMobile ? 12 : 10, color:muted, marginBottom:5 }}>
                   PAR EMPLACEMENT
                   {qaaPosition && <span style={{color:accent, fontWeight:700, marginLeft:6}}>→ {qaaPosition}</span>}
                 </div>
-{(() => {
-                  const CHIP = isMobile ? 34 : 26;
-                  const GAP  = 3;
-                  const half = (CHIP + GAP) / 2;
-                  const odds  = Array.from({length:26},(_,i)=>String(i*2+1));
-                  const evens = Array.from({length:25},(_,i)=>String(i*2+2));
-                  const chip = (s: string) => {
-                    const isSel = qaaPosition === s;
-                    const isOcc = occupiedPositions.has(s);
-                    const isVide = videPositions.has(s);
-                    return (
-                      <div key={s} style={{ position:"relative", display:"inline-block" }}
-                        onMouseEnter={() => setHoveredChip(s)}
-                        onMouseLeave={() => setHoveredChip(null)}>
-                      <button disabled={isOcc && !isSel}
-                        onClick={() => setQaaPosition(isSel ? "" : s)}
-                        title={isOcc && !isSel ? `Emplacement ${s} occupé${isVide ? " (∅ vide)" : ""}` : `Emplacement ${s}`}
-                        style={{
-                          fontFamily:MONO, fontSize: isMobile ? 12 : 9,
-                          width:CHIP, height:CHIP, flexShrink:0,
-                          borderRadius:4, padding:0, lineHeight:1,
-                          cursor: isOcc && !isSel ? "not-allowed" : "pointer",
-                          border: isSel ? `2px solid ${accent}` : `1px solid ${isOcc ? "transparent" : border}`,
-                          background: isSel ? accent+"33"
-                            : isOcc  ? (dark ? "#2a1a00" : "#fde68a")
-                            : (dark ? "#1a1a1a" : "#f0f0f0"),
-                          color: isSel ? accent
-                            : isOcc  ? "#92400e"
-                            : muted,
-                          fontWeight: isSel ? 700 : 400,
-                          opacity: isOcc && !isSel ? 0.75 : 1,
-                        }}>{s}</button>
-                      </div>
-                    );
-                  };
-                  const hovItemGlobal = hoveredChip
-                    ? (selectedLine?.items ?? []).find((it) => it.position === hoveredChip && occupiedPositions.has(hoveredChip))
-                    : undefined;
-                  return (
-                    <>
-                    <div style={{ overflowX:"auto", paddingBottom:4 }}>
-                      <div style={{ display:"inline-block", minWidth:"max-content" }}>
-                        <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>
-                          {evens.map(chip)}
-                        </div>
-                        <div style={{ display:"flex", gap:GAP }}>
-                          {odds.map(chip)}
-                        </div>
-                      </div>
+                {/* Scrollable chip grid */}
+                <div style={{ overflowX:"auto", paddingBottom:2 }}>
+                  <div style={{ display:"inline-block", minWidth:"max-content" }}>
+                    <div style={{ display:"flex", gap:GAP, marginLeft:half, marginBottom:GAP }}>
+                      {evens.map(chip)}
                     </div>
-                    {hovItemGlobal && (
-                      <div style={{ marginTop:6, borderRadius:5,
-                        background:surface, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
-                        padding:"6px 10px", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-                        <span style={{ fontSize:9, color:muted, textTransform:"uppercase", letterSpacing:"0.1em", flexShrink:0 }}>
-                          {selectedLine?.name}{String(parseInt(hoveredChip!)).padStart(2,"0")}
-                        </span>
-                        <span style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 10, color:text, fontWeight:700, flex:1, minWidth:0, wordBreak:"break-all" }}>
-                          {hovItemGlobal.code.startsWith("∅") ? "∅ vide" : hovItemGlobal.code}
-                        </span>
-                        <span style={{ fontSize: isMobile ? 11 : 9, color: hovItemGlobal.weight===null?amber:text, flexShrink:0 }}>
-                          {hovItemGlobal.weight !== null ? `${fmtW(hovItemGlobal.weight)} kg` : "? kg"}
-                        </span>
-                        {hovItemGlobal.dechargement && (
-                          <span style={{ fontSize: isMobile ? 11 : 9, color:dark?"#86efac":"#166534", fontWeight:700, flexShrink:0 }}>
-                            {hovItemGlobal.dechargement}
-                          </span>
-                        )}
-                      </div>
+                    <div style={{ display:"flex", gap:GAP }}>
+                      {odds.map(chip)}
+                    </div>
+                  </div>
+                </div>
+                {hovItemGlobal && (
+                  <div style={{ marginTop:4, borderRadius:5,
+                    background:surface, border:`1px solid ${dark?"#4ade80":"#16a34a"}`,
+                    padding:"6px 10px", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
+                    <span style={{ fontSize:9, color:muted, textTransform:"uppercase", letterSpacing:"0.1em", flexShrink:0 }}>
+                      {selectedLine?.name}{String(parseInt(hoveredChip!)).padStart(2,"0")}
+                    </span>
+                    <span style={{ fontFamily:MONO, fontSize: isMobile ? 12 : 10, color:text, fontWeight:700, flex:1, minWidth:0, wordBreak:"break-all" }}>
+                      {hovItemGlobal.code.startsWith("∅") ? "∅ vide" : hovItemGlobal.code}
+                    </span>
+                    <span style={{ fontSize: isMobile ? 11 : 9, color: hovItemGlobal.weight===null?amber:text, flexShrink:0 }}>
+                      {hovItemGlobal.weight !== null ? `${fmtW(hovItemGlobal.weight)} kg` : "? kg"}
+                    </span>
+                    {hovItemGlobal.dechargement && (
+                      <span style={{ fontSize: isMobile ? 11 : 9, color:dark?"#86efac":"#166534", fontWeight:700, flexShrink:0 }}>
+                        {hovItemGlobal.dechargement}
+                      </span>
                     )}
-                    </>
-                  );
-                })()}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1088,6 +1085,7 @@ export default function Hangar({ dark }: HangarProps) {
             </thead>
             <tbody>
               {lineSummary.map((l, lIdx) => {
+              if (l.qty === 0) return null;
               const lineBg = dark ? LINE_BG_DARK[lIdx % LINE_BG_DARK.length] : LINE_BG_LIGHT[lIdx % LINE_BG_LIGHT.length];
               return (
                 <tr key={l.id} style={{ background: l.id===selectedId?(accent+"28"):lineBg }}>
@@ -1307,7 +1305,7 @@ export default function Hangar({ dark }: HangarProps) {
               <input autoFocus value={pending.weight} inputMode="decimal"
                 onChange={(e) => setPending({ ...pending, weight: e.target.value })}
                 onKeyDown={(e) => { if (e.key==="Enter") confirmPending(); if (e.key==="Escape") setPending(null); }}
-                placeholder="12.5"
+                placeholder="ex : 11.258"
                 style={{ width:"100%", fontFamily:MONO, fontSize: isMobile ? 16 : 13,
                   padding: isMobile ? "12px 10px" : "8px 10px", borderRadius:5,
                   background:bg, border:`1px solid ${pending.weight.trim()==="" ? "#ef4444" : border}`, color:text, outline:"none",
@@ -1526,6 +1524,7 @@ export default function Hangar({ dark }: HangarProps) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
